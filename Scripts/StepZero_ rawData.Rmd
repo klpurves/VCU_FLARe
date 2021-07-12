@@ -383,4 +383,11 @@ write.csv(final,paste0(output_path,"/stageZero_complete_data.csv"),row.names = F
 
 ```
 
+# clear global environment again to reset
+```{r clear environment at end}
+
+remove(list = ls())
+
+
+```
 

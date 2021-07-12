@@ -133,43 +133,39 @@ this step uses the user ids from our now filtered user data to get only the rati
 ratings <- ratings[(ratings$user_id %in% users$id_user),]
 ```
 
-## get the column containing the scream stimulus ID ready for later use
-This step creates a nice small dataframe which identifies which shape was the CS+ for each participant
 
-```{r get scream stimulus column}
-
-## create a long dataframe identifying which shape was the CS+ for each username
-stimlong <- dcast(users,
-                  username ~
-                    scream_stimulus_id,
-                  value.var = "scream_stimulus_id")
-
-# Rename the columns appropriately
-
-names(stimlong) <- c("Subject_ID","CSpA","CSpB")
-
-# create a single easy column that identifies which was the CS+ for everyone. This is basically the same as scream_stimulus_id, but with the shapes named.
-stimlong <- stimlong %>%
-  mutate(CSpID = case_when(CSpA == 1 ~ "CSa",
-                           CSpB == 2 ~ "CSb"))
-
-stimid <- stimlong[c("Subject_ID","CSpID")]
-
-```
-
-## rname phase ID columns
- rename phase id columns to correctly idetify phases
+## Rename numbers to correct identifiers for both datasets
+ rename phase id columns to correctly identify phases
 1 - 4: affective ratings
 5: acquisition
 6: generalisation
 7: extinction
 8: return of fear
+
+and stimulus ID columns to correctly identify stimulus
+CSa == 1
+CSb == 2
  
 ```{r rename phase id}
 
 ratings <- ratings %>%
-  mutate(phase_id = case_when(phase_id == "1" ~ "Affective_familiarity"))
+  mutate(phase_id = case_when(phase_id == "1" ~ "Affective_familiarity",
+                              phase_id == "2" ~ "Affective_valence",
+                              phase_id == "3" ~ "Affective_arousal",
+                              phase_id == "4" ~ "Affective_fear",
+                              phase_id == "5" ~ "Acquisition",
+                              phase_id == "6" ~ "Generalisation",
+                              phase_id == "7" ~ "Extinction",
+                              phase_id == "8" ~ "Return_of_fear",
+                              ))
+ 
+ratings <- ratings %>%
+  mutate(stimulus_id = case_when(stimulus_id == 1 ~ "CSa",
+                          stimulus_id == 2 ~ "CSb"))
 
+users <- users %>%
+  mutate(CSpID= case_when(scream_stimulus_id == "1" ~ "CSa",
+                          scream_stimulus_id == "2" ~ "CSb"))
 ```
 ## detect any epxeriment restarts and create an exclusions database
 This stage will find instances where participants left the task at any stage (restarts) and flag these for consideration in the exclusions file
@@ -189,16 +185,16 @@ restart <- dcast(ratings,
 restart <- restart[(restart$user_id %in% users$id_user),]
 
 #identify any restarts during affective ratings
-restart$restart_affective_ratings <- as.numeric(ifelse((restart$`1` > 0) |
-                                           (restart$`2` >0) | 
-                                           (restart$`3` >0) | 
-                                           (restart$`4` >0),1,0))
+restart$restart_affective_ratings <- as.numeric(ifelse((restart$Affective_familiarity > 0) |
+                                           (restart$Affective_valence >0) | 
+                                           (restart$Affective_arousal >0) | 
+                                           (restart$Affective_fear >0),1,0))
 
  # identify restarts during any phase
-restart$restart_acquisition <- as.numeric(ifelse((restart$`5` > 0),1,0))
-restart$restart_generalisation <- as.numeric(ifelse((restart$`6` > 0),1,0))
-restart$restart_extinction <- as.numeric(ifelse((restart$`7` > 0),1,0))
-restart$restart_ROF <- as.numeric(ifelse((restart$`1` > 0),1,0))
+restart$restart_acquisition <- as.numeric(ifelse((restart$Acquisition > 0),1,0))
+restart$restart_generalisation <- as.numeric(ifelse((restart$Generalisation > 0),1,0))
+restart$restart_extinction <- as.numeric(ifelse((restart$Extinction > 0),1,0))
+restart$restart_ROF <- as.numeric(ifelse((restart$Return_of_fear > 0),1,0))
 
 ```
 
@@ -269,4 +265,64 @@ volme[volme == '-Inf'] <- NA
 volmi[volmi == '-Inf'] <- NA
 volma[volma == '-Inf'] <- NA
 
+volme[volme == 'Inf'] <- NA
+volmi[volmi == 'Inf'] <- NA
+volma[volma == 'Inf'] <- NA
+
+volme[volme == 'NaN'] <- NA
+volmi[volmi == 'NaN'] <- NA
+volma[volma == 'NaN'] <- NA
+
 ```
+
+merge min, max and mean volume datasets and only retain acquisition trials.
+
+```{r merge volume retain acquisition}
+
+# add a suffix to all indicating what metric is being measured (with the exception of user ID)
+
+names(volme)[2:dim(volme)[2]] <- paste0("Mean_volume_",names(volme)[2:dim(volme)[2]])
+names(volmi)[2:dim(volmi)[2]] <- paste0("Minimum_volume_",names(volmi)[2:dim(volmi)[2]])
+names(volma)[2:dim(volma)[2]] <- paste0("Maximum_volume_",names(volma)[2:dim(volma)[2]])
+
+
+# merge
+volume <- merge(volmi,volma)
+volume <- merge(volume,volme)
+
+
+# select only acquisition trials
+
+volume <- select(volume,contains(c("user_ID","Acquisition")))
+
+```
+
+Identify possible volume related issues to consider exclusions
+
+```{r volume exclusion creation}
+
+
+volume <- volume %>%
+  mutate(Average_volume_acquisition_below_.5 = case_when(Mean_volume_Acquisition < 0.5 ~ 1,
+                                              Mean_volume_Acquisition >= 0.5 ~ 0,
+                                              TRUE ~ NA_real_),
+         Average_volume_acquisition_below_.7 = case_when(Mean_volume_Acquisition < 0.7 ~ 1,
+                                              Mean_volume_Acquisition >= 0.7 ~ 0,
+                                              TRUE ~ NA_real_),
+         Volume_missing_acquisition = case_when(is.na(Mean_volume_Acquisition) ~ 1,
+                                              !is.na(Mean_volume_Acquisition)~ 0,
+                                              TRUE ~ NA_real_),
+         )
+
+```
+add these to the exclusions data set
+
+```{r add volume exlcusions to exclusions set}
+
+vol_exclusions <- volume %>%
+  select(user_id,Average_volume_acquisition_below_.5, Average_volume_acquisition_below_.7,Volume_missing_acquisition)
+
+exclusions <- merge(exclusions,vol_exclusions)
+
+```
+

@@ -1,0 +1,107 @@
+---
+title: "Step zero: convert raw exported csv files downloaded from the portal to a subject per row dataset"
+author: "K L Purves"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: 3
+    toc_float:
+      collapsed: false
+    number_sections: false
+    highlight: monochrome
+    theme: cerulean
+code_folding: show
+
+html_notebook:
+  theme: cerulean
+toc: yes
+---
+
+# Important information before you run this script
+
+This step uses the raw data downloaded from the FLARe portal. Both the user and rating data files need to be stored in the same folder on your computer.They should be called *users.csv* and *ratings.csv* respectively. This should not be in any folder that is synchronised with GitHub in order to ensure data security.
+
+The first part of the script will ask you to select the most recent data rating file, and the remainder of the script will use that information to locate the correct files and datasets on your computer.
+
+# Setup
+This section will set up your environment ready to begin processing the data.
+
+
+#### Clear global environment
+```{r Clear global environment}
+remove(list = ls())
+```
+
+#### load libraries 
+This code block will check if you have the appropriate libraries installed. If you do not, it will download and install them for you. If you do, it will simply call them into your local library.
+
+```{r Setup, libraries}
+
+if(!require(reshape2)){
+  install.packages("reshape2")
+  library(reshape2)
+}
+
+```
+
+#### select ratings data, identify file path and file names
+
+This block will ask you to find the *ratings data* on your computer. it will use this information to identify the right path for the user data, and to create a folder to store the processed data. 
+
+```{r get files and paths}
+
+## file picker
+filename_ratings <- file.choose()
+
+## get the path to the directory where the raw data is stored
+raw_path <- dirname(filename)
+
+## create the folders for each stage (note, this will do nothing if they already exist)
+dir.create(file.path(raw_path, "StageZero_datasets"), showWarnings = FALSE)
+dir.create(file.path(raw_path, "StageOne_datasets"), showWarnings = FALSE)
+dir.create(file.path(raw_path, "StageTwo_datasets"), showWarnings = FALSE)
+dir.create(file.path(raw_path, "Final_datasets"), showWarnings = FALSE)
+
+## create exclusions directory
+dir.create(file.path(raw_path, "Exclusions"), showWarnings = FALSE)
+
+
+```
+
+#### Set up filename and path variables for later
+
+Having this here makes it easier to adjust if you want to change file or folder naming conventions to suit your project
+
+```{r set up path and filenames}
+
+# paths
+exclusions_path <- file.path(raw_path, "Exclusions")
+output_path <- file.path(raw_path, "StageZero_datasets")
+
+# file names
+
+file_ratings <- "affectiveRatings_stageZero.csv" 
+file_acquisition <- "acquisition_stageZero.csv" 
+file_generalisation <- "generalisation_stageZero.csv" 
+file_extinction <- "extinction_stageZero.csv" 
+file_return <- "returnFear_stageZero.csv" 
+file_exclusions <- "dataDrivenExclusions_stageZero.csv" 
+
+# users data reference
+
+filename_users <- file.path(raw_path,"users.csv")
+  
+```
+
+
+#### read in data
+
+```{r read in raw data}
+ratings <- read.table(filename_ratings,header = TRUE, sep=',')
+users <- read.table(filename_users,header = TRUE, sep=',')
+```
+
+

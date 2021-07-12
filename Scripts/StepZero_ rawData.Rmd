@@ -62,7 +62,7 @@ This block will ask you to find the *ratings data* on your computer. it will use
 filename_ratings <- file.choose()
 
 ## get the path to the directory where the raw data is stored
-raw_path <- dirname(filename)
+raw_path <- dirname(filename_ratings)
 
 ## create the folders for each stage (note, this will do nothing if they already exist)
 dir.create(file.path(raw_path, "StageZero_datasets"), showWarnings = FALSE)
@@ -157,17 +157,26 @@ stimid <- stimlong[c("Subject_ID","CSpID")]
 
 ```
 
-
-## detect any epxeriment restarts and create an exclusions database
-This stage will find instances where participants left the task at any stage (restarts) and flag these for consideration in the exclusions file
-
-After restart column is identified, this chunk will identify when the restart occurred
-
+## rname phase ID columns
+ rename phase id columns to correctly idetify phases
 1 - 4: affective ratings
 5: acquisition
 6: generalisation
 7: extinction
 8: return of fear
+ 
+```{r rename phase id}
+
+ratings <- ratings %>%
+  mutate(phase_id = case_when(phase_id == "1" ~ "Affective_familiarity"))
+
+```
+## detect any epxeriment restarts and create an exclusions database
+This stage will find instances where participants left the task at any stage (restarts) and flag these for consideration in the exclusions file
+
+After restart column is identified, this chunk will identify when the restart occurred
+
+
 ```{r identify restart column}
 ## create a wide data frame showing any restarts per phase
 restart <- dcast(ratings,
@@ -202,7 +211,62 @@ exclusions <- restart %>%
 
 ```
 
-# reshape affective and expectancy rating data
+# Reshape affective and expectancy rating data
 
 This stage will begin processing the critical experiment data.
 
+## reshape data from long to wide
+
+this keeps used, and then creates columns named with phase ID (see list in lines 166-170 above), stimulus ID (CSa or CSb, gen a-d) and the trial order, with each cell containing the affective or expectancy rating for that phase, stimulus and trial.
+
+```{r reshape long to wide}
+
+wide <- dcast(ratings, 
+              user_id ~
+                phase_id + stimulus_id + 
+                phase_iteration,
+              value.var = "rating",
+              fun.aggregate = max)
+
+```
+
+## adjust missing and not seen values
+In this dataframe, missing values are currently identified as 0's and missing data is identified as -Inf. 
+There should be a column for every possible trial+ stimulus combination. This means that there will be different patterns of missing data depending on which pseudo randomised trial order the participants saw. 
+
+In this section, we make any occasion where a stimulus was seen but not responded to 999, and anything not shown to the participant as NA. In other words, if a participant was in a pseudorandomised trial order which means they did not see shape b in trial 2 during acquisition, the value in that cell position will be NA. If a participant was in a pseudo-randomised trial order which means they DID see shape b in trial 2 during acquisition, but they failed to respond, the value in that cell position will be 999.
+
+
+```{r adjust missing values}
+
+wide[wide == 0] <- 999
+wide[wide == '-Inf'] <- NA
+
+```
+
+# Create a dataset with the minimum, maximum and average volume per phase. 
+
+```{r volume dataset creation}
+volme <- dcast(ratings,
+               user_id ~
+                 phase_id,
+               value.var="volume",
+               fun.aggregate = mean)
+
+volmi <- dcast(ratings,
+               user_id ~
+                 phase_id,
+               value.var="volume",
+               fun.aggregate = min)
+
+volma <- dcast(ratings,
+               user_id ~
+                 phase_id,
+               value.var="volume",
+               fun.aggregate = max)
+
+volme[volme == '-Inf'] <- NA
+volmi[volmi == '-Inf'] <- NA
+volma[volma == '-Inf'] <- NA
+
+```

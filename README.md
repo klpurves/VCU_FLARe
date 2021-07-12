@@ -1,4 +1,4 @@
-# FLARe trauma exposed easibility trial
+# FLARe trauma exposed feasibility trial
 ## PI: Dr Kaitlin Bountress
 ## Org: VCU
 

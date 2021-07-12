@@ -45,6 +45,11 @@ if(!require(reshape2)){
   library(reshape2)
 }
 
+if(!require(dplyr)){
+  install.packages("dplyr")
+  library(dplyr)
+}
+
 ```
 
 #### select ratings data, identify file path and file names
@@ -104,4 +109,100 @@ ratings <- read.table(filename_ratings,header = TRUE, sep=',')
 users <- read.table(filename_users,header = TRUE, sep=',')
 ```
 
+
+# Basic data cleaning
+
+these steps clean the raw data , dropping data from test experiments and test subjects to retain only participants
+
+## retain VCU experiment in users data
+```{r data }
+#identify users that were paticipants in the actual experiment data and nly retain these in our users data set
+users <- users[(users$experiment_id == 12),] 
+
+## drop all test IDs from this group. use regular expressions, ignoring case. order the file by user id 
+users <- users %>%
+  filter(!grepl("tes",username,ignore.case =T)) %>%
+  arrange(username)
+
+```
+
+### match participants in the rating data
+this step uses the user ids from our now filtered user data to get only the rating data we need
+
+```{r retain correct users}
+ratings <- ratings[(ratings$user_id %in% users$id_user),]
+```
+
+## get the column containing the scream stimulus ID ready for later use
+This step creates a nice small dataframe which identifies which shape was the CS+ for each participant
+
+```{r get scream stimulus column}
+
+## create a long dataframe identifying which shape was the CS+ for each username
+stimlong <- dcast(users,
+                  username ~
+                    scream_stimulus_id,
+                  value.var = "scream_stimulus_id")
+
+# Rename the columns appropriately
+
+names(stimlong) <- c("Subject_ID","CSpA","CSpB")
+
+# create a single easy column that identifies which was the CS+ for everyone. This is basically the same as scream_stimulus_id, but with the shapes named.
+stimlong <- stimlong %>%
+  mutate(CSpID = case_when(CSpA == 1 ~ "CSa",
+                           CSpB == 2 ~ "CSb"))
+
+stimid <- stimlong[c("Subject_ID","CSpID")]
+
+```
+
+
+## detect any epxeriment restarts and create an exclusions database
+This stage will find instances where participants left the task at any stage (restarts) and flag these for consideration in the exclusions file
+
+After restart column is identified, this chunk will identify when the restart occurred
+
+1 - 4: affective ratings
+5: acquisition
+6: generalisation
+7: extinction
+8: return of fear
+```{r identify restart column}
+## create a wide data frame showing any restarts per phase
+restart <- dcast(ratings,
+                 user_id ~
+                   phase_id,
+                 value.var="detected_restart",
+                 fun.aggregate = sum)
+
+## limit it to our participants
+restart <- restart[(restart$user_id %in% users$id_user),]
+
+#identify any restarts during affective ratings
+restart$restart_affective_ratings <- as.numeric(ifelse((restart$`1` > 0) |
+                                           (restart$`2` >0) | 
+                                           (restart$`3` >0) | 
+                                           (restart$`4` >0),1,0))
+
+ # identify restarts during any phase
+restart$restart_acquisition <- as.numeric(ifelse((restart$`5` > 0),1,0))
+restart$restart_generalisation <- as.numeric(ifelse((restart$`6` > 0),1,0))
+restart$restart_extinction <- as.numeric(ifelse((restart$`7` > 0),1,0))
+restart$restart_ROF <- as.numeric(ifelse((restart$`1` > 0),1,0))
+
+```
+
+turn this into the start of our exclusions dataset
+
+```{r restart into exclusions}
+
+exclusions <- restart %>%
+  select(user_id, restart_affective_ratings, restart_acquisition,restart_generalisation,restart_extinction,restart_ROF)
+
+```
+
+# reshape affective and expectancy rating data
+
+This stage will begin processing the critical experiment data.
 

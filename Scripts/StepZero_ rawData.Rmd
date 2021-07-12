@@ -50,6 +50,11 @@ if(!require(dplyr)){
   library(dplyr)
 }
 
+if(!require(tidyr)){
+  install.packages("tidyr")
+  library(tidyr)
+}
+
 ```
 
 #### select ratings data, identify file path and file names
@@ -207,39 +212,6 @@ exclusions <- restart %>%
 
 ```
 
-# Reshape affective and expectancy rating data
-
-This stage will begin processing the critical experiment data.
-
-## reshape data from long to wide
-
-this keeps used, and then creates columns named with phase ID (see list in lines 166-170 above), stimulus ID (CSa or CSb, gen a-d) and the trial order, with each cell containing the affective or expectancy rating for that phase, stimulus and trial.
-
-```{r reshape long to wide}
-
-wide <- dcast(ratings, 
-              user_id ~
-                phase_id + stimulus_id + 
-                phase_iteration,
-              value.var = "rating",
-              fun.aggregate = max)
-
-```
-
-## adjust missing and not seen values
-In this dataframe, missing values are currently identified as 0's and missing data is identified as -Inf. 
-There should be a column for every possible trial+ stimulus combination. This means that there will be different patterns of missing data depending on which pseudo randomised trial order the participants saw. 
-
-In this section, we make any occasion where a stimulus was seen but not responded to 999, and anything not shown to the participant as NA. In other words, if a participant was in a pseudorandomised trial order which means they did not see shape b in trial 2 during acquisition, the value in that cell position will be NA. If a participant was in a pseudo-randomised trial order which means they DID see shape b in trial 2 during acquisition, but they failed to respond, the value in that cell position will be 999.
-
-
-```{r adjust missing values}
-
-wide[wide == 0] <- 999
-wide[wide == '-Inf'] <- NA
-
-```
-
 # Create a dataset with the minimum, maximum and average volume per phase. 
 
 ```{r volume dataset creation}
@@ -325,4 +297,90 @@ vol_exclusions <- volume %>%
 exclusions <- merge(exclusions,vol_exclusions)
 
 ```
+
+# Reshape affective and expectancy rating data
+
+This stage will begin processing the critical experiment data.
+
+## reshape data from long to wide
+
+this keeps used, and then creates columns named with phase ID (see list in lines 166-170 above), stimulus ID (CSa or CSb, gen a-d) and the trial order, with each cell containing the affective or expectancy rating for that phase, stimulus and trial.
+
+```{r reshape long to wide}
+
+wide <- dcast(ratings, 
+              user_id ~
+                phase_id + stimulus_id + 
+                phase_iteration,
+              value.var = "rating",
+              fun.aggregate = max)
+
+```
+
+## adjust missing and not seen values
+In this dataframe, missing values are currently identified as 0's and missing data is identified as -Inf. 
+There should be a column for every possible trial+ stimulus combination. This means that there will be different patterns of missing data depending on which pseudo randomised trial order the participants saw. 
+
+In this section, we make any occasion where a stimulus was seen but not responded to 999, and anything not shown to the participant as NA. In other words, if a participant was in a pseudorandomised trial order which means they did not see shape b in trial 2 during acquisition, the value in that cell position will be NA. If a participant was in a pseudo-randomised trial order which means they DID see shape b in trial 2 during acquisition, but they failed to respond, the value in that cell position will be 999.
+
+
+```{r adjust missing values}
+
+wide[wide == 0] <- 999
+wide[wide == '-Inf'] <- NA
+
+```
+
+## add subject ID, CSpID, and volume onto the main dataset
+
+```{r add all necessary variables to ratings}
+
+# create dataset of additional variables
+
+## get user specific variables
+additional_vars <- users %>%
+  select(username,id_user,CSpID) %>%
+  rename(user_id = id_user)
+
+## get volume specific variables
+
+volumevars <- volume %>%
+  select(user_id,Mean_volume_Acquisition,Minimum_volume_Acquisition,Maximum_volume_Acquisition)
+
+# merge onto volume dataset
+
+additional_vars <- left_join(volumevars,additional_vars) %>%
+  relocate(username, .before = Mean_volume_Acquisition) %>%
+  relocate(CSpID, .after = username)  
+  
+
+# merge all together and drop suer id in favour of username, rename username to Subject_ID
+
+final <- left_join(additional_vars,wide) %>%
+  select(-user_id) %>%
+  rename(Subject_ID = username)
+
+```
+
+Drop those who didnt do the experiment at all (NA for volume variables is the best and easiest indicator)
+
+```{r drop non participants}
+
+# list of names of experiment variables
+
+non_participant_vars <- c("Mean_volume_Acquisition","Minimum_volume_Acquisition","Maximum_volume_Acquisition")
+
+final <- final %>%
+  drop_na(all_of(non_participant_vars ))
+
+```
+
+# save phase 0 cleaned datasets
+
+```{r save clean stage zero dataset}
+
+write.csv(final,paste0(output_path,"/stageZero_complete_data.csv"),row.names = FALSE)
+
+```
+
 

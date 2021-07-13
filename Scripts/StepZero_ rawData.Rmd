@@ -383,11 +383,34 @@ write.csv(final,paste0(output_path,"/stageZero_complete_data.csv"),row.names = F
 
 ```
 
+# clean exclusion file and save
+Retain only people who might be excluded for any reason, save this version of the dataset. Drop those who didnt do task as indicated by missing volume
+
+```{r clean exclusion}
+
+exclusions_filtered <-  filter_all(exclusions, any_vars(. == 1)) %>%
+  filter(Volume_missing_acquisition !=1) %>%
+  select(!Volume_missing_acquisition)
+
+
+exclusions_filtered <- merge(exclusions_filtered, additional_vars[c("username","user_id")]) %>%
+  select(-user_id) %>%
+  relocate(username, .before = restart_affective_ratings)
+
+```
+save the exclusions file
+
+```{r save exclusions}
+
+write.csv(final,paste0(exclusions_path,"/possible_exclusion_dataset.csv"),row.names = FALSE)
+
+```
+
+
 # clear global environment again to reset
 ```{r clear environment at end}
 
 remove(list = ls())
-
 
 ```
 

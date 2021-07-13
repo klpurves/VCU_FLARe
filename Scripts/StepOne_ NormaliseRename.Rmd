@@ -1,0 +1,25 @@
+---
+title: "Step one: rename and normalise variables"
+author: "K L Purves"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: 3
+    toc_float:
+      collapsed: false
+    number_sections: false
+    highlight: monochrome
+    theme: cerulean
+code_folding: show
+
+html_notebook:
+  theme: cerulean
+toc: yes
+---
+
+# Description
+This script will rename variables and normalise them according to what variable was the CS Plus for each individual. 
+

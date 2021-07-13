@@ -166,7 +166,11 @@ ratings <- ratings %>%
  
 ratings <- ratings %>%
   mutate(stimulus_id = case_when(stimulus_id == 1 ~ "CSa",
-                          stimulus_id == 2 ~ "CSb"))
+                          stimulus_id == 2 ~ "CSb",
+                          stimulus_id == 3 ~ "GS1",
+                          stimulus_id == 4 ~ "GS2",
+                          stimulus_id == 5 ~ "GS3",
+                          stimulus_id == 6 ~ "GS4"))
 
 users <- users %>%
   mutate(CSpID= case_when(scream_stimulus_id == "1" ~ "CSa",

@@ -44,7 +44,7 @@ Currently, this script doesnt do anything more. Once you have amde decisions abo
 
 ### elephant plots
 
-This script takes the processed raw data and derives some siple summary dataframe to use for elephant plotting, and affective rating plots. The script takes as input the stage zero cleaned data outputted from stage zero. It will ask you to select this file from your file browser when you run the script.
+This script takes the processed raw data and derives some simple summary dataframe to use for elephant plotting, and affective rating plots. The script takes as input the stage zero cleaned data outputted from stage zero. It will ask you to select this file from your file browser when you run the script.
 
 It will seperate this raw data into expectancy and affective rating datasets, drop truly missing trials, recode missed values (999) to NA, and create summaries of data across all particpants for each trial, for each phase and stimulus type. This will result in an average and 95% confidence intervals for each stimulus for each trial of the experiment.
 

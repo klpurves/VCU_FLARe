@@ -204,7 +204,7 @@ ratings <- ratings %>%
 ```
 
 
-## detect any epxeriment restarts and create an exclusions database
+## detect any experiment restarts and create an exclusions database
 This stage will find instances where participants left the task at any stage (restarts) and flag these for consideration in the exclusions file
 
 After restart column is identified, this chunk will identify when the restart occurred
@@ -219,7 +219,7 @@ restart <- dcast(ratings,
                  fun.aggregate = sum)
 
 ## limit it to our participants
-restart <- restart[(restart$user_id %in% users$id_user),]
+restart <- restart[(restart$user_id %in% users$user_id),]
 
 #identify any restarts during affective ratings
 restart$restart_affective_ratings <- as.numeric(ifelse((restart$Affective_familiarity > 0) |
@@ -330,9 +330,16 @@ exclusions <- merge(exclusions,vol_exclusions)
 
 ```
 
-# Reshape affective and expectancy rating data
+## create trial ID by participant, phase and stimulus
 
-This stage will begin processing the critical experiment data.
+here we filter out extra trials that were received due to app bug to ensure that we have consistent data across all participants
+
+```{r test}
+
+ratings <- ratings %>%
+  group_by(user_id,phase_id,normalised_stimulus_id) %>%
+  mutate(trial_number = 1:n())
+```
 
 ## reshape data from long to wide
 
@@ -343,9 +350,12 @@ this keeps used, and then creates columns named with phase ID (see list in lines
 wide <- dcast(ratings, 
               user_id ~
                 phase_id + normalised_stimulus_id + 
-                phase_iteration,
+                trial_number,
               value.var = "rating",
-              fun.aggregate = max)
+              fun.aggregate = max) %>%
+  select(-c(Acquisition_CSplus_13,Acquisition_CSminus_13,Acquisition_CSminus_14,Acquisition_CSminus_15,
+        Affective_arousal_CSplus_5,Affective_familiarity_CSplus_5,Affective_valence_CSminus_5,Affective_fear_CSminus_5,Extinction_CSplus_19) )
+
 
 ```
 
@@ -419,21 +429,22 @@ Retain only people who might be excluded for any reason, save this version of th
 
 ```{r clean exclusion}
 
-exclusions_filtered <-  filter_all(exclusions, any_vars(. == 1)) %>%
+exclusions_filtered <-  exclusions %>%
   filter(Volume_missing_acquisition !=1) %>%
   select(!Volume_missing_acquisition)
 
 
 exclusions_filtered <- merge(exclusions_filtered, additional_vars[c("username","user_id")]) %>%
   select(-user_id) %>%
-  relocate(username, .before = restart_affective_ratings)
+  relocate(username, .before = restart_affective_ratings) %>%
+  rename(Subject_ID = username)
 
 ```
 save the exclusions file
 
 ```{r save exclusions}
 
-write.csv(final,paste0(exclusions_path,"/possible_exclusion_dataset.csv"),row.names = FALSE)
+write.csv(exclusions_filtered,paste0(exclusions_path,"/possible_exclusion_dataset.csv"),row.names = FALSE)
 
 ```
 

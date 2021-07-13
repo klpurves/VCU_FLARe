@@ -1,0 +1,159 @@
+---
+title: "Step one: calculate missing data due to drop out and non responding"
+author: "K L Purves"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: 3
+    toc_float:
+      collapsed: false
+    number_sections: false
+    highlight: monochrome
+    theme: cerulean
+code_folding: show
+
+html_notebook:
+  theme: cerulean
+toc: yes
+---
+
+# Description
+This script will identify quantities of missing trials per person and add these values to the exclusion datafile for later consideration. it will distinguish between missing due to drop out (NA) and missing due to non response (999) and record these in the datafile for later reference.
+
+This script will not conduct any data imputation procedures or create aggregate scores at this stage, to allow for analytic choice down the line. This would be a good place to add code to 1) deal with missing data and exclusions
+
+# Setup
+This section will set up your environment ready to begin processing the data.
+
+
+#### Clear global environment
+```{r Clear global environment}
+remove(list = ls())
+```
+
+#### load libraries 
+This code block will check if you have the appropriate libraries installed. If you do not, it will download and install them for you. If you do, it will simply call them into your local library.
+
+```{r Setup, libraries}
+
+if(!require(dplyr)){
+  install.packages("dplyr")
+  library(dplyr)
+}
+
+```
+
+#### select stage zero data, identify file path and file names
+
+This block will ask you to find the *stage zero data* on your computer. it will use this information to identify the right path for the finished stage one data set
+
+```{r get files and paths}
+
+## file picker
+filename_zero <- file.choose()
+
+## get the path to the directory where we will save the finished dataset
+save_path <- file.path(dirname(dirname(filename_zero)),"StageOne_datasets")
+
+
+## exclusion path
+
+exclusion_path <- file.path(dirname(dirname(filename_zero)),"Exclusions")
+  
+```
+
+#### read in stage zero data and exclusions dataset
+
+
+```{r read in data}
+
+zero_data <- read.csv(filename_zero)
+
+exclusion_data <- read.csv(paste0(exclusion_path,"/possible_exclusion_dataset.csv"))
+
+```
+
+# Count missing data per person, per phase, per stimulus and add to exclusion information sheet
+create a long data frame identifying phase per person
+```{r count missing values,warning=FALSE}
+
+data_miss <- zero_data %>%
+  pivot_longer(cols = !c(Subject_ID,CSpID)) %>%
+  separate(name,"Phase") %>%
+  subset(Phase != c("Mean","Minimum","Maximum"))
+
+```
+
+## trials not seen
+this section identifies people who dropped out at some stage and thus did not see trials in order to respond to them.
+
+count NAs per trial per person. Note that NAs are trials that the person did not do at all. So this would indicate where they stopped. Drop generalisation here as this didnt seem to be included for anyone and will just be confusing.
+
+```{r total trials that were skipped,warning=FALSE}
+
+skipped_trials <- data_miss %>%
+  group_by(Subject_ID,Phase) %>%
+  summarise_all(funs(sum(is.na(.))))
+
+```
+
+turn this into a wide dataframe
+
+```{r pivot na count longer}
+
+skipped_trials <- pivot_wider(skipped_trials,id_cols = c(Subject_ID,CSpID),names_from = Phase) %>%
+  select(-c(Generalisation,CSpID))
+```
+
+append text to make the variables clear and merge onto the exclusions dataset
+
+```{r rename skipped trials and merge}
+
+names(skipped_trials)[2:dim(skipped_trials)[2]] <- paste0(names(skipped_trials)[2:dim(skipped_trials)[2]] ,"_number_of_trials_not_seen")
+
+exclusion_data <- full_join(exclusion_data,skipped_trials)
+
+```
+
+## trials not responded to
+this section identifies how many trials were seen, but not responded to. This indicates trials where we have missing data at random, rather than because they were no longer engaging in the task.
+
+count missing trials per person and add counts of this to the exclusion datafram
+```{r total trials that were missedresponses,warning=FALSE}
+
+missed_trials <- data_miss %>%
+  group_by(Subject_ID,Phase) %>%
+  summarise_all(funs(sum(value==999))) %>%
+  select(-CSpID)
+
+```
+
+turn this into a wide dataframe
+
+```{r pivot missed responses count longer}
+
+missed_trials <- pivot_wider(missed_trials,id_cols = c(Subject_ID),names_from = Phase) %>%
+  select(-c(Generalisation))
+```
+
+append text to make the variables clear and merge onto the exclusions dataset
+
+```{r rename missed trials and merge}
+
+names(missed_trials)[2:dim(skipped_trials)[2]] <- paste0(names(missed_trials)[2:dim(missed_trials)[2]] ,"_number_of_trials_not_responded")
+
+exclusion_data <- full_join(exclusion_data,missed_trials)
+
+```
+
+# save new exclusion identifier
+
+```{r save new exclusions}
+
+write.csv(exclusion_data,paste0(exclusion_path,"/possible_exclusion_dataset.csv"),row.names = FALSE)
+
+```
+

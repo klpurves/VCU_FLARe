@@ -42,7 +42,7 @@ This script will calculate the number of trials missed per person per phase due 
 
 Currently, this script doesnt do anything more. Once you have amde decisions about how to deal with missing data, you may want to incorporate these analytic steps in this script.
 
-### elephtant plots
+### elephant plots
 
 This script takes the processed raw data and derives some siple summary dataframe to use for elephant plotting, and affective rating plots. The script takes as input the stage zero cleaned data outputted from stage zero. It will ask you to select this file from your file browser when you run the script.
 

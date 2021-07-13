@@ -1,0 +1,27 @@
+---
+title: "Elephant plots from raw processed data"
+author: "K L Purves"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: 3
+    toc_float:
+      collapsed: false
+    number_sections: false
+    highlight: monochrome
+    theme: cerulean
+code_folding: show
+
+html_notebook:
+  theme: cerulean
+toc: yes
+---
+
+# Description
+
+This script will take the raw processed data from step one (i.e. a dataset that is well shaped and labelled, but not yet aggregated or with any appropriate issing data imputations etc) and create a series of plots to visualise the data. This will help for quick visual QCs and feasibility checks.
+
+The code can be easily adapted to work on a clean dataset with missing values imputed. 

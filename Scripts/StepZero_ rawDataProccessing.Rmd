@@ -71,8 +71,7 @@ raw_path <- dirname(filename_ratings)
 
 ## create the folders for each stage (note, this will do nothing if they already exist)
 dir.create(file.path(raw_path, "StageZero_datasets"), showWarnings = FALSE)
-dir.create(file.path(raw_path, "StageOne_datasets"), showWarnings = FALSE)
-dir.create(file.path(raw_path, "StageTwo_datasets"), showWarnings = FALSE)
+dir.create(file.path(raw_path, "Figures"), showWarnings = FALSE)
 dir.create(file.path(raw_path, "Final_datasets"), showWarnings = FALSE)
 
 ## create exclusions directory
@@ -161,7 +160,7 @@ ratings <- ratings %>%
                               phase_id == "5" ~ "Acquisition",
                               phase_id == "6" ~ "Generalisation",
                               phase_id == "7" ~ "Extinction",
-                              phase_id == "8" ~ "Return_of_fear",
+                              phase_id == "8" ~ "ReturnOfFear",
                               ))
  
 ratings <- ratings %>%
@@ -231,7 +230,7 @@ restart$restart_affective_ratings <- as.numeric(ifelse((restart$Affective_famili
 restart$restart_acquisition <- as.numeric(ifelse((restart$Acquisition > 0),1,0))
 restart$restart_generalisation <- as.numeric(ifelse((restart$Generalisation > 0),1,0))
 restart$restart_extinction <- as.numeric(ifelse((restart$Extinction > 0),1,0))
-restart$restart_ROF <- as.numeric(ifelse((restart$Return_of_fear > 0),1,0))
+restart$restart_ROF <- as.numeric(ifelse((restart$ReturnOfFear > 0),1,0))
 
 ```
 

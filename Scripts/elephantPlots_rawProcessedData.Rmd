@@ -1,0 +1,294 @@
+---
+title: "Elephant plots from raw processed data"
+author: "K L Purves"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: 3
+    toc_float:
+      collapsed: false
+    number_sections: false
+    highlight: monochrome
+    theme: cerulean
+code_folding: show
+
+html_notebook:
+  theme: cerulean
+toc: yes
+---
+
+#### Clear global environment
+```{r Clear global environment}
+remove(list = ls())
+```
+
+
+# Description
+
+This script will take the raw processed data from step one (i.e. a dataset that is well shaped and labelled, but not yet aggregated or with any appropriate issing data imputations etc) and create a series of plots to visualise the data. This will help for quick visual QCs and feasibility checks.
+
+The code can be easily adapted to work on a clean dataset with missing values imputed. 
+
+```{r Setup, libraries}
+
+if(!require(ggplot2)){
+  install.packages("ggplot2")
+  library(ggplot2)
+}
+
+if(!require(dplyr)){
+  install.packages("dplyr")
+  library(dplyr)
+}
+
+if(!require(tidyr)){
+  install.packages("tidyr")
+  library(tidyr)
+}
+
+if(!require(cowplot)){
+  install.packages("cowplot")
+  library(cowplot)
+}
+
+if(!require(gtools)){
+  install.packages("gtools")
+  library(gtools)
+}
+
+```
+
+# create plot ready data
+
+separate out affective ratings and make a long dataframe, with summary data across the cohort.
+
+
+## read in processed data from stage zero
+
+```{r read in stage zero data and get the folder reference to save figures}
+
+## file picker
+filename_data <- file.choose()
+
+## get the path to the directory where the raw data is stored
+figure_path <- file.path(dirname(dirname(filename_data)),"Figures")
+
+data_all<- read.csv(filename_data)
+
+```
+
+
+## create expectancy dataset
+
+drop affective ratings, volume vars and CSpID
+
+```{r drop affective}
+
+expectancy <- data_all %>%
+  select(!contains(c("volume", "CSpID","Affective")))
+
+
+```
+
+## create affective dataset
+drop all expectancy ratings and volume vars
+```{r drop expectancy}
+
+affective <- data_all %>%
+  select(contains(c("Subject_ID","Affective")))
+
+
+```
+
+## make plot dataset
+
+Long format, with summary data (means across sample, 95% CIs)
+
+### expectancy
+make long, drop generalisation and trials that were not actually responded to due to drop out, make 999 (missed response) NA, create summary of data
+```{r expectancy plot data}
+expectancy_plot_data <- expectancy %>%
+  pivot_longer(cols = !c(Subject_ID)) %>%
+  separate(name, c("Phase","Stimulus","Trial"),convert = T) %>%
+filter(complete.cases(.)) %>%
+  filter(Phase != "Generalisation") %>%
+  mutate(value = ifelse(value == 999,NA,value)) %>%
+  group_by(Phase, Stimulus, Trial) %>%
+  summarise(Mean = mean(value,na.rm = TRUE),
+            SD = sd(value, na.rm = TRUE),
+            N = n()) %>%
+  mutate(SE = SD/sqrt(N),
+         ci_low = Mean - qt(1-(0.05/2),N-1) * SE,
+         ci_high = Mean + qt(1-(0.05/2),N-1) * SE) 
+```
+
+### affective
+make long, drop g trials that were not actually responded to due to drop out, make 999 (missed response) NA, create summary of data
+```{r affective plot data}
+
+affective_plot_data <- affective %>%
+  pivot_longer(cols = !c(Subject_ID)) %>%
+  separate(name, c("Rating","Type","Stimulus","Phase"),convert = T) %>%
+filter(complete.cases(.)) %>%
+  mutate(value = ifelse(value == 999,NA,value)) %>%
+  select(-Rating) %>%
+  group_by(Type,Stimulus,Phase) %>%
+  summarise(Mean = mean(value,na.rm = TRUE),
+            SD = sd(value, na.rm = TRUE),
+            N = n()) %>%
+  mutate(SE = SD/sqrt(N),
+         ci_low = Mean - qt(1-(0.05/2),N-1) * SE,
+         ci_high = Mean + qt(1-(0.05/2),N-1) * SE) 
+
+```
+
+# Expectancy elephant plot
+
+set up plot parameters such as palette and font sizes
+
+```{r parameter specs}
+
+PMpallette <- c("#002D64","#ACB9EA")  
+
+### SET UP TEXT SIZE HERE ########
+
+y.title <- 12
+axis.text <-  10
+strip.text <- 12
+
+plot.title <- 16
+plot.subtitle <- 12
+
+# png resolution and units
+res <- 700
+units = 'in'
+
+```
+
+## plot
+
+```{r elephant plot}
+
+
+elephant <-  ggplot(expectancy_plot_data,
+                     aes(Trial,Mean,
+                         color=Stimulus))         +
+  geom_point(size=2)                                        +
+  geom_line(size =1)                                        +
+  geom_ribbon(aes(ymin=ci_low, ymax=ci_high,
+                  fill=Stimulus),
+              linetype=2, alpha=0.1,
+              size=.8)                                      +
+  scale_fill_manual( values=c(PMpallette))                   +
+  facet_grid(. ~ Phase, scales = "free_x",
+             space = "free_x")              +
+  theme_bw()                                                +
+  scale_color_manual(values=PMpallette)                     +
+  labs(title=paste("Preliminary Elephant plot"),
+         y="Mean expectancy rating\n",
+       subtitle = paste("dashed lines = 95% confidence intervals\nminimum n (all phases complete) = ", 
+                        min(expectancy_plot_data$N),
+                        "\nmaximum n (any data) = ",max(expectancy_plot_data$N) ))                                   +
+  theme(plot.subtitle = element_text(face = "italic",
+                                     size = plot.subtitle),
+        plot.title = element_text(face = "italic",
+                                     size = plot.title),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(face = "bold",
+                                 size = axis.text),
+        strip.text = element_text(face = "bold",
+                                  size = strip.text),
+        legend.position = 'right',
+        axis.title = element_text(face = "bold",
+                                  size = y.title),
+        panel.spacing.x=unit(0, "lines"))                     +
+  
+  scale_x_continuous(breaks = round(seq(min(expectancy_plot_data$Trial),
+                                        max(expectancy_plot_data$Trial), by = 1),1))          +
+  scale_y_continuous(breaks = seq(0,10,by=1))         +
+  theme(plot.margin = unit(c(0.6, 0.6, 0.6, 0.6), "cm"))
+
+
+elephant
+
+```
+
+
+# Affective rating plot
+
+set up plot parameters such as palette and font sizes
+
+## plot
+
+```{r affective plot}
+
+
+affective_figure <-  ggplot(affective_plot_data,
+                     aes(Phase,Mean,
+                         color=Stimulus))         +
+  geom_point(size=2)                                        +
+  geom_line(size =1)                                        +
+  geom_ribbon(aes(ymin=ci_low, ymax=ci_high,
+                  fill=Stimulus),
+              linetype=2, alpha=0.1,
+              size=.8)                                      +
+  scale_fill_manual( values=c(PMpallette))                   +
+  facet_grid(. ~ Type, scales = "free_x",
+             space = "free_x")              +
+  theme_bw()                                                +
+  scale_color_manual(values=PMpallette)                     +
+  labs(title=paste("ongoing data checks: affective ratings"),
+         y="Mean affective rating\n",
+       subtitle = paste("dashed lines = 95% confidence intervals\nminimum n (all phases complete) = ", 
+                        min(affective_plot_data$N),
+                        "\nmaximum n (any data) = ",max(affective_plot_data$N) ))                                   +
+  theme(plot.subtitle = element_text(face = "italic",
+                                     size = plot.subtitle),
+        plot.title = element_text(face = "italic",
+                                     size = plot.title),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(face = "bold",
+                                 size = axis.text),
+        strip.text = element_text(face = "bold",
+                                  size = strip.text),
+        legend.position = 'right',
+        axis.title = element_text(face = "bold",
+                                  size = y.title),
+        panel.spacing.x=unit(0, "lines"))                     +
+  
+  scale_x_continuous(breaks = round(seq(min(affective_plot_data$Phase),
+                                        max(affective_plot_data$Phase), by = 1),1))          +
+  scale_y_continuous(breaks = seq(0,10,by=1))         +
+  theme(plot.margin = unit(c(0.6, 0.6, 0.6, 0.6), "cm"))
+
+
+affective_figure
+
+```
+
+
+# save figures 
+
+```{r save elephant}
+
+# save figure in folder
+png(paste0(figure_path,"/DataQC_ElephantPlot.png"),width=18,height=10,unit=units,res=res)
+ggdraw(elephant)
+dev.off()
+
+# save figure in folder
+png(paste0(figure_path,"/DataQC_AffectiveRatings.png"),width=18,height=10,unit=units,res=res)
+ggdraw(affective_figure)
+dev.off()
+
+```
+
+#### Clear global environment
+```{r Clear global environment end}
+remove(list = ls())
+```

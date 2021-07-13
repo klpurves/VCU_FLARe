@@ -156,4 +156,8 @@ exclusion_data <- full_join(exclusion_data,missed_trials)
 write.csv(exclusion_data,paste0(exclusion_path,"/possible_exclusion_dataset.csv"),row.names = FALSE)
 
 ```
+#### Clear global environment
+```{r Clear global environment}
+remove(list = ls())
+```
 

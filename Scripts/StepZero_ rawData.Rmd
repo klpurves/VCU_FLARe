@@ -174,8 +174,36 @@ ratings <- ratings %>%
 
 users <- users %>%
   mutate(CSpID= case_when(scream_stimulus_id == "1" ~ "CSa",
-                          scream_stimulus_id == "2" ~ "CSb"))
+                          scream_stimulus_id == "2" ~ "CSb")) %>%
+  rename(user_id = id_user)
+
+ratings <- left_join(ratings,users[c("user_id","CSpID")])
 ```
+
+## nrmalise trials according to CSplus ID 
+Create a CS plus ID column to indicate for each trial variable normalsied according to CS plus
+
+```{r nromalise trials by CS plus}
+
+ratings <- ratings %>%
+  mutate(normalised_stimulus_id = case_when(CSpID == "CSa" & stimulus_id == "CSa" ~ "CSplus",
+                                            CSpID == "CSa" & stimulus_id == "CSb" ~ "CSminus",
+                                            CSpID == "CSb" & stimulus_id == "CSb" ~ "CSplus",
+                                            CSpID == "CSb" & stimulus_id == "CSa" ~ "CSminus",
+                                            
+                                            CSpID == "CSa" & stimulus_id == "GS1" ~ "GS1",
+                                            CSpID == "CSa" & stimulus_id == "GS2" ~ "GS2",
+                                            CSpID == "CSa" & stimulus_id == "GS3" ~ "GS3",
+                                            CSpID == "CSa" & stimulus_id == "GS4" ~ "GS4",
+                                            
+                                            CSpID == "CSb" & stimulus_id == "GS1" ~ "GS4",
+                                            CSpID == "CSb" & stimulus_id == "GS2" ~ "GS3",
+                                            CSpID == "CSb" & stimulus_id == "GS3" ~ "GS2",
+                                            CSpID == "CSb" & stimulus_id == "GS4" ~ "GS1",))
+
+```
+
+
 ## detect any epxeriment restarts and create an exclusions database
 This stage will find instances where participants left the task at any stage (restarts) and flag these for consideration in the exclusions file
 
@@ -314,7 +342,7 @@ this keeps used, and then creates columns named with phase ID (see list in lines
 
 wide <- dcast(ratings, 
               user_id ~
-                phase_id + stimulus_id + 
+                phase_id + normalised_stimulus_id + 
                 phase_iteration,
               value.var = "rating",
               fun.aggregate = max)
@@ -343,8 +371,7 @@ wide[wide == '-Inf'] <- NA
 
 ## get user specific variables
 additional_vars <- users %>%
-  select(username,id_user,CSpID) %>%
-  rename(user_id = id_user)
+  select(username,user_id,CSpID)
 
 ## get volume specific variables
 

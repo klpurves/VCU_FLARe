@@ -27,7 +27,7 @@ Preliminary group comparisons investigating group differences between different 
 1. Whole phase means    
 2. First third of each phase (Acquisition and Extinction)   
 3. Last third means (Acquisition and Extinction)    
-4. Differentials for all of the above.
+
 
 # Setup
 

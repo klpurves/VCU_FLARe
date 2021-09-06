@@ -35,8 +35,7 @@ You may wish to recode these when creating aggregate scores
 
 ### stage one
 
-This script takes the processed raw data and derives some siple summary dataframe to use for elephant plotting, and affective rating plots. The script takes as input the stage zero cleaned data outputted from stage zero. It will ask you to select this file from your file browser when you run the script.
-
+This script will ask you to select the stage zero file from your file browser when you run the script.
 
 This script will calculate the number of trials missed per person per phase due either to drop out, or due to missed responses and incorporate this information in the exclusions data file (see poin 1 in section above).
 

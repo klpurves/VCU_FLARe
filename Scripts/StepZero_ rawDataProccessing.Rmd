@@ -109,8 +109,10 @@ filename_users <- file.path(raw_path,"users.csv")
 #### read in data
 
 ```{r read in raw data}
-ratings <- read.table(filename_ratings,header = TRUE, sep=',')
-users <- read.table(filename_users,header = TRUE, sep=',')
+ratings <- read.csv(filename_ratings,header = TRUE, sep=',',
+                    fileEncoding = "UTF-8-BOM")
+users <- read.csv(filename_users,header = TRUE, sep=',',
+                    fileEncoding = "UTF-8-BOM")
 ```
 
 

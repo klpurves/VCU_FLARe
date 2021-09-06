@@ -1,0 +1,679 @@
+---
+title: "Step two: impute missed trial data, create summary scores and merge exclusion data with fear conditioning data"
+author: "K L Purves"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: 3
+    toc_float:
+      collapsed: false
+    number_sections: false
+    highlight: monochrome
+    theme: cerulean
+code_folding: show
+
+html_notebook:
+  theme: cerulean
+toc: yes
+---
+
+# Description
+
+This script will read in the flare app data from Katie Bountress with additional grouping variables and will then impute missing trial data with the following logic:
+
+1. If the first trial is missed, the average for the first trial for the same stimulus type (CS+ or CS-) for the whole sample will be used as the missing value   
+2. If the last trial is missed, the preceding value for the same stimulus type will be carried forward to replace the missing value 
+3. If any other trial is missed, the average of the preceding and following value will be used
+
+Next, summary scores will be created        
+
+1. Means per stimulus per phase
+2. Means per stimulus for the first and last third of each phase    
+3. Average differential per phase (CS+ - CS- average)    
+4. Average differential for first and final third of each phase (CS+ - CS- average for each third)    
+
+
+Exclusion data will be merged onto the new imputed data file for use in the next steps.
+
+# Setup
+This section will set up your environment ready to begin processing the data.
+
+
+#### Clear global environment
+```{r Clear global environment}
+remove(list = ls())
+```
+
+#### load libraries 
+This code block will check if you have the appropriate libraries installed. If you do not, it will download and install them for you. If you do, it will simply call them into your local library.
+
+```{r Setup, libraries}
+
+if(!require(zoo)){
+  install.packages("zoo")
+  library(zoo)
+}
+
+if(!require(plyr)){
+  install.packages("plyr")
+  library(plyr)
+}
+
+if(!require(dplyr)){
+  install.packages("dplyr")
+  library(dplyr)
+}
+
+if(!require(tidyr)){
+  install.packages("tidyr")
+  library(tidyr)
+}
+
+
+```
+
+#### load in new data with group allocations as csv
+converted to csv in spss earlier
+
+This block will ask you to find the *fear conditioning data with correct group allocation as a csv file* on your computer. it will use this information to identify the right path for the finished stage one data set
+
+```{r get files and paths}
+
+## file picker
+filename_one <- file.choose()
+
+## get the path to the directory where we will save the finished dataset
+save_path <- file.path(dirname(filename_one),"Final_datasets")
+
+## exclusion path
+exclusion_path <- file.path(dirname(filename_one),"Exclusions")
+  
+```
+
+#### read in stage zero data and exclusions dataset
+
+
+```{r read in data}
+
+data <- read.csv(filename_one)
+
+exclusion_data <- read.csv(paste0(exclusion_path,"/possible_exclusion_dataset.csv"))
+
+```
+
+# Impute missing trial data
+
+## middle trial imputation function
+
+this function will be used later for mid trial imputations. Included here as annoation indicates rules and approaches.
+```{r function to impute mid values}
+# function to impute missing data from middle trials
+# takes as input: index position of the 2nd and second from last stimulus for imputation
+
+imputeMiddle <- function(data,firstPos,lastPos){
+  
+for (row in 1:dim(data)[1]){
+  for (n in firstPos:lastPos){
+    
+    
+    # for the second stimulus, only use the preceding value. If it is NA, then use an average of all the 1st values as the preceding value.
+    if(n == firstPos){
+
+      pre <- ifelse(is.na(data[row,n-1]),colMeans(data[n-1]),data[row,n-1])   # If the column before is NA, use the average of the first column across the whole sample
+      post <- ifelse(is.na(data[row,n+1]),data[row,n+2],data[row,n+1])  # If the column after is NA, use the one two after.      
+      newval <- ifelse(is.na(data[row,n]),(pre + post)/2,data[row,n])
+      
+      data[row,n] <- newval
+
+    }
+    # if the last column is NA, carry forward the last available value
+    else if(n == lastPos){
+
+      
+      pre <- ifelse(is.na(data[row,n-1]),data[row,n-2],data[row,n-1])   # If the column before is NA, use the average of the first column across the whole sample
+      post <- ifelse(is.na(data[row,n+1]),pre,data[row,n+1])  # If the column after is NA, carry forward the last available data point     
+      newval <- ifelse(is.na(data[row,n]),(pre + post)/2,data[row,n])
+
+      
+      data[row,n] <- newval
+    }
+    
+
+    else if(is.na(data[row,n])){
+
+      pre <- ifelse(is.na(data[row,n-1]),data[row,n-2],data[row,n-1])   # If the column before is NA, use the one two before.
+      post <- ifelse(is.na(data[row,n+1]),data[row,n+2],data[row,n+1])  # If the column after is NA, use the one two after.      
+      newval <- ifelse(is.na(data[row,n]),(pre + post)/2,data[row,n])
+    
+
+      data[row,n] <- newval
+
+    }
+  }
+}
+return(data)
+}
+
+```
+
+
+## Last trial imputation function
+na.locf doesnt work because we are doing row-wise, not column wise. Easier to use function I wrote for pervious data than make data long form and then wide again
+
+Also allows easy specification of column subsets
+
+```{r carry forward last observation function}
+
+imputeLast <- function(dat,lastColIndex) {
+  
+  for (row in 1:dim(dat)[1]){
+    
+    if(is.na(dat[row,lastColIndex])){
+      
+      lastval <- dat[row,lastColIndex-1]
+      
+      dat[row,lastColIndex] <- lastval
+    }
+    
+    else {
+      
+      dat[row,lastColIndex] <- dat[row,lastColIndex]
+      
+    }
+  }
+  return(dat)
+}
+
+```
+
+## Identify any people who missed more than 50% of trials for any stimulus type
+
+And add this a variable for later exclusion in our dataset. Create seperate variables for 
+1. number of trials missed during the task (Missing.didNotRespond)
+2. number of trials missed due to drop out (Missing.dropOut)
+3. Total number of trials missed (Missing.Total)
+
+
+*Acquisition*
+```{r id missing 50%}
+
+acq_minus_missing <- data %>%
+  select(ID,
+         contains("Acquisition_CSminus")) %>%
+  mutate(Acquisition_CSm_Missing.didNotRespond = rowSums(. == 999,na.rm = T),
+         Acquisition_CSm_Missing.dropOut = rowSums(is.na(.)),
+         Acquisition_CSm_Missing.Total = Acquisition_CSm_Missing.didNotRespond + Acquisition_CSm_Missing.dropOut) %>%
+  select(ID,
+         Acquisition_CSm_Missing.didNotRespond,
+         Acquisition_CSm_Missing.dropOut,
+         Acquisition_CSm_Missing.Total)
+
+
+acq_plus_missing <- data %>%
+  select(ID,
+         contains("Acquisition_CSplus")) %>%
+  mutate(Acquisition_CSp_Missing.didNotRespond = rowSums(. == 999,na.rm = T),
+         Acquisition_CSp_Missing.dropOut = rowSums(is.na(.)),
+         Acquisition_CSp_Missing.Total = Acquisition_CSp_Missing.didNotRespond + Acquisition_CSp_Missing.dropOut) %>%
+  select(ID,
+         Acquisition_CSp_Missing.didNotRespond,
+         Acquisition_CSp_Missing.dropOut,
+         Acquisition_CSp_Missing.Total)
+
+
+acq_sets <- list(data,
+              acq_plus_missing,
+              acq_minus_missing)
+
+data <- join_all(acq_sets)
+
+```
+
+*Extinction* 
+```{r id missing 50% ext}
+
+ext_minus_missing <- data %>%
+  select(ID,
+         contains("Extinction_CSminus")) %>%
+  mutate(Extinction_CSm_Missing.didNotRespond = rowSums(. == 999,na.rm = T),
+         Extinction_CSm_Missing.dropOut = rowSums(is.na(.)),
+         Extinction_CSm_Missing.Total = Extinction_CSm_Missing.didNotRespond + Extinction_CSm_Missing.dropOut) %>%
+  select(ID,
+         Extinction_CSm_Missing.didNotRespond,
+         Extinction_CSm_Missing.dropOut,
+         Extinction_CSm_Missing.Total)
+
+
+ext_plus_missing <- data %>%
+  select(ID,
+         contains("Extinction_CSplus")) %>%
+  mutate(Extinction_CSp_Missing.didNotRespond = rowSums(. == 999,na.rm = T),
+         Extinction_CSp_Missing.dropOut = rowSums(is.na(.)),
+         Extinction_CSp_Missing.Total = Extinction_CSp_Missing.didNotRespond + Extinction_CSp_Missing.dropOut) %>%
+  select(ID,
+         Extinction_CSp_Missing.didNotRespond,
+         Extinction_CSp_Missing.dropOut,
+         Extinction_CSp_Missing.Total)
+
+
+ext_sets <- list(data,
+              ext_plus_missing,
+              ext_minus_missing)
+
+data <- join_all(ext_sets)
+
+```
+
+*Return of Fear*
+```{r id missing 50% ROF}
+
+rof_minus_missing <- data %>%
+  select(ID,
+         contains("ReturnOfFear_CSminus")) %>%
+  mutate(ReturnOfFear_CSm_Missing.didNotRespond = rowSums(. == 999,na.rm = T),
+         ReturnOfFear_CSm_Missing.dropOut = rowSums(is.na(.)),
+         ReturnOfFear_CSm_Missing.Total = ReturnOfFear_CSm_Missing.didNotRespond + ReturnOfFear_CSm_Missing.dropOut) %>%
+  select(ID,
+         ReturnOfFear_CSm_Missing.didNotRespond,
+         ReturnOfFear_CSm_Missing.dropOut,
+         ReturnOfFear_CSm_Missing.Total)
+
+
+rof_plus_missing <- data %>%
+  select(ID,
+         contains("ReturnOfFear_CSplus")) %>%
+  mutate(ReturnOfFear_CSp_Missing.didNotRespond = rowSums(. == 999,na.rm = T),
+         ReturnOfFear_CSp_Missing.dropOut = rowSums(is.na(.)),
+         ReturnOfFear_CSp_Missing.Total = ReturnOfFear_CSp_Missing.didNotRespond + ReturnOfFear_CSp_Missing.dropOut) %>%
+  select(ID,
+         ReturnOfFear_CSp_Missing.didNotRespond,
+         ReturnOfFear_CSp_Missing.dropOut,
+         ReturnOfFear_CSp_Missing.Total)
+
+
+rof_sets <- list(data,
+              rof_plus_missing,
+              rof_minus_missing)
+
+data <- join_all(rof_sets)
+
+```
+
+## convert 999 to NA for the next steps
+Now we have saved counts of how many trials were missed due to drop out vs missed ratings we can convert 999 to NA to avoid any numeric calculation issues with the next steps
+
+```{r convert 999 to NA}
+
+data[data == 999] <- NA_real_
+
+```
+
+## impute first trial per stimulus
+
+Where the first trial has been missed, set the value to be the average first trial value for the same phase and stimulus across the whole sample.
+
+I wont impute this for people who missed more than 50% of trials per stimulus
+
+### Acquistion
+
+Not imputing if missing 6 or more responses for each stimulus (12 total trials per stimulus)
+```{r first trial missing set to average of whole sample}
+
+# get the average column value and save this as a variable rounded to the nearest whole number
+
+csm1mean <- data %>%
+  select(Acquisition_CSminus_1) %>% 
+  drop_na() %>%
+  summarise_if(is.numeric, mean)
+
+csm1mean <- round(csm1mean$Acquisition_CSminus_1,0)
+
+csp1mean <- data %>%
+  select(Acquisition_CSplus_1) %>% 
+  drop_na() %>%
+  summarise_if(is.numeric, mean)
+
+csp1mean <- round(csp1mean$Acquisition_CSplus_1,0)
+
+data <- data %>%
+  mutate(Acquisition_CSminus_1 = case_when(!is.na(Acquisition_CSminus_1) ~ Acquisition_CSminus_1,
+                                           is.na(Acquisition_CSminus_1) & Acquisition_CSm_Missing.Total >5 ~ NA_real_,
+                                           is.na(Acquisition_CSminus_1) & Acquisition_CSm_Missing.Total < 6 ~ csm1mean),
+         Acquisition_CSplus_1 = case_when(!is.na(Acquisition_CSplus_1) ~ Acquisition_CSplus_1,
+                                           is.na(Acquisition_CSplus_1) & Acquisition_CSp_Missing.Total >5 ~ NA_real_,
+                                           is.na(Acquisition_CSplus_1) & Acquisition_CSp_Missing.Total < 6 ~ csp1mean)
+         )
+         
+
+```
+
+### Extinction
+
+Not imputing if missing 9 or more responses for each stimulus (18 total trials per stimulus)
+```{r first trial missing set to average of whole sample extinction}
+
+# get the average column value and save this as a variable rounded to the nearest whole number
+csm1mean <- data %>%
+  select(Extinction_CSminus_1) %>% 
+  drop_na() %>%
+  summarise_if(is.numeric, mean)
+
+csm1mean <- round(csm1mean$Extinction_CSminus_1,0)
+
+csp1mean <- data %>%
+  select(Extinction_CSplus_1) %>% 
+  drop_na() %>%
+  summarise_if(is.numeric, mean)
+
+csp1mean <- round(csp1mean$Extinction_CSplus_1,0)
+
+#convert from integer to numeric for consistent typing
+data$Extinction_CSplus_1 <- as.numeric(data$Extinction_CSplus_1)
+
+# impute first values
+data <- data %>%
+  mutate(Extinction_CSminus_1 = case_when(!is.na(Extinction_CSminus_1) ~ Extinction_CSminus_1,
+                                           is.na(Extinction_CSminus_1) & Extinction_CSm_Missing.Total >8 ~ NA_real_,
+                                           is.na(Extinction_CSminus_1) & Extinction_CSm_Missing.Total < 9 ~ csm1mean),
+         Extinction_CSplus_1 = case_when(!is.na(Extinction_CSplus_1) ~ Extinction_CSplus_1,
+                                           is.na(Extinction_CSplus_1) & Extinction_CSp_Missing.Total >8 ~ NA_real_,
+                                           is.na(Extinction_CSplus_1) & Extinction_CSp_Missing.Total < 9 ~ csp1mean))
+         
+
+```
+
+### Return of fear
+
+Not imputing if missing 2 or more responses for each stimulus (4 total trials per stimulus)
+```{r first trial missing set to average of whole sample ReturnOfFear}
+
+# get the average column value and save this as a variable rounded to the nearest whole number
+csm1mean <- data %>%
+  select(ReturnOfFear_CSminus_1) %>% 
+  drop_na() %>%
+  summarise_if(is.numeric, mean)
+
+csm1mean <- round(csm1mean$ReturnOfFear_CSminus_1,0)
+
+csp1mean <- data %>%
+  select(ReturnOfFear_CSplus_1) %>% 
+  drop_na() %>%
+  summarise_if(is.numeric, mean)
+
+csp1mean <- round(csp1mean$ReturnOfFear_CSplus_1,0)
+
+#convert from integer to numeric for consistent typing
+data$ReturnOfFear_CSminus_1 <- as.numeric(data$ReturnOfFear_CSminus_1)
+
+# impute first values
+
+data <- data %>%
+  mutate(ReturnOfFear_CSminus_1 = case_when(!is.na(ReturnOfFear_CSminus_1) ~ ReturnOfFear_CSminus_1,
+                                           is.na(ReturnOfFear_CSminus_1) & ReturnOfFear_CSm_Missing.Total >1 ~ NA_real_,
+                                           is.na(ReturnOfFear_CSminus_1) & ReturnOfFear_CSm_Missing.Total < 2 ~ csm1mean),
+         ReturnOfFear_CSplus_1 = case_when(!is.na(ReturnOfFear_CSplus_1) ~ ReturnOfFear_CSplus_1,
+                                           is.na(ReturnOfFear_CSplus_1) & ReturnOfFear_CSp_Missing.Total >1 ~ NA_real_,
+                                           is.na(ReturnOfFear_CSplus_1) & ReturnOfFear_CSp_Missing.Total < 2 ~ csp1mean)
+         )
+         
+
+```
+
+## impute mid trials
+
+any missing trial will be imputed as the average of the preceding and subsequent value using function defined at the beginning of this section.
+
+If the preceding value was NA, then the value two trials before is used.Same for if the following value was also NA. For the 2nd trials where there is only one possible value preceding, if that value is NA, the preceding value is set as the sample mean for trial 1. For the second to last trial, where it is ony possible to have one remaining value after, if this is NA, then the value is carried forward from the last available trial data. 
+
+
+Note that this is run on the second up to second till last stimulus
+
+### Acquisition
+```{r impute mid trials Acquisition }
+##  CS MINUS
+# get index position of the first relevant column
+firstIndex <- grep("^Acquisition_CSminus_2$", names(data))
+
+# get index position of the last relevant column
+lastIndex <- grep("^Acquisition_CSminus_11$", names(data))
+
+# apply our imputation function to relevant stimulus columns
+data <- imputeMiddle(data,firstIndex,lastIndex)
+
+##  CS PLUS
+# get index position of the first relevant column
+firstIndex <- grep("^Acquisition_CSplus_2$", names(data))
+
+# get index position of the last relevant column
+lastIndex <- grep("^Acquisition_CSplus_11$", names(data))
+
+# apply our imputation function to relevant stimulus columns
+data <- imputeMiddle(data,firstIndex,lastIndex)
+```
+
+### Extinction
+```{r impute mid trials Extinction }
+##  CS MINUS
+# get index position of the first relevant column
+firstIndex <- grep("^Extinction_CSminus_2$", names(data))
+
+# get index position of the last relevant column
+lastIndex <- grep("^Extinction_CSminus_17$", names(data))
+
+# apply our imputation function to relevant stimulus columns
+data <- imputeMiddle(data,firstIndex,lastIndex)
+
+##  CS PLUS
+# get index position of the first relevant column
+firstIndex <- grep("^Extinction_CSplus_2$", names(data))
+
+# get index position of the last relevant column
+lastIndex <- grep("^Extinction_CSplus_17$", names(data))
+
+# apply our imputation function to relevant stimulus columns
+data <- imputeMiddle(data,firstIndex,lastIndex)
+```
+
+### Return of Fear
+```{r impute mid trials ReturnOfFear }
+##  CS MINUS
+# get index position of the first relevant column
+firstIndex <- grep("^ReturnOfFear_CSminus_2$", names(data))
+
+# get index position of the last relevant column
+lastIndex <- grep("^ReturnOfFear_CSminus_3$", names(data))
+
+# apply our imputation function to relevant stimulus columns
+data <- imputeMiddle(data,firstIndex,lastIndex)
+
+##  CS PLUS
+# get index position of the first relevant column
+firstIndex <- grep("^ReturnOfFear_CSplus_2$", names(data))
+
+# get index position of the last relevant column
+lastIndex <- grep("^ReturnOfFear_CSplus_3$", names(data))
+
+# apply our imputation function to relevant stimulus columns
+data <- imputeMiddle(data,firstIndex,lastIndex)
+```
+
+## Impute last trial 
+
+### Acquisition
+```{r impute last trials Acquisition }
+##  CS MINUS
+# get index position of the last relevant column
+lastIndex <- grep("^Acquisition_CSminus_12$", names(data))
+
+# apply our imputation function to relevant stimulus columns
+data <- imputeLast(data,lastIndex)
+
+##  CS PLUS
+# get index position of the last relevant column
+lastIndex <- grep("^Acquisition_CSplus_12$", names(data))
+
+# apply our imputation function to relevant stimulus columns
+data <- imputeLast(data,lastIndex)
+```
+
+### Extinction
+```{r impute last trials Extinction }
+##  CS MINUS
+# get index position of the last relevant column
+lastIndex <- grep("^Extinction_CSminus_18$", names(data))
+
+# apply our imputation function to relevant stimulus columns
+data <- imputeLast(data,lastIndex)
+
+##  CS PLUS
+# get index position of the last relevant column
+lastIndex <- grep("^Extinction_CSplus_18$", names(data))
+
+# apply our imputation function to relevant stimulus columns
+data <- imputeLast(data,lastIndex)
+```
+
+### ReturnOfFear
+```{r impute last trials ReturnOfFear }
+##  CS MINUS
+# get index position of the last relevant column
+lastIndex <- grep("^ReturnOfFear_CSminus_4$", names(data))
+
+# apply our imputation function to relevant stimulus columns
+data <- imputeLast(data,lastIndex)
+
+##  CS PLUS
+# get index position of the last relevant column
+lastIndex <- grep("^ReturnOfFear_CSplus_4$", names(data))
+
+# apply our imputation function to relevant stimulus columns
+data <- imputeLast(data,lastIndex)
+```
+
+
+# Creat summary scores
+
+## Whole phase means
+
+The average expectancy rating for each stimulus for each phase per person
+
+```{r whole phase means}
+
+
+acqCSpColnames <- names(data[grep("^Acquisition_CSplus_", names(data))])
+acqCSmColnames <- names(data[grep("^Acquisition_CSminus_", names(data))])
+
+extCSpColnames <- names(data[grep("^Extinction_CSplus_", names(data))])
+extCSmColnames <- names(data[grep("^Extinction_CSminus_", names(data))])
+
+rofCSpColnames <- names(data[grep("^ReturnOfFear_CSplus_", names(data))])
+rofCSmColnames <- names(data[grep("^ReturnOfFear_CSminus_", names(data))])
+
+data <- data %>%
+  mutate(Acquisition_CSPlus_Mean = round(rowMeans(select(., all_of(acqCSpColnames))),2),
+         Acquisition_CSMinus_Mean = round(rowMeans(select(., all_of(acqCSmColnames))),2),
+         Extinction_CSPlus_Mean = round(rowMeans(select(., all_of(extCSpColnames))),2),
+         Extinction_CSMinus_Mean = round(rowMeans(select(., all_of(extCSmColnames))),2),
+         ReturnOfFear_CSPlus_Mean = round(rowMeans(select(., all_of(rofCSpColnames))),2),
+         ReturnOfFear_CSMinus_Mean = round(rowMeans(select(., all_of(rofCSmColnames))),2))
+
+```
+
+## First third means
+
+The average expectancy rating for each stimulus for the first third of each phase (Acquistion and extinction only, ROF has only 4 trials)
+
+```{r first third phase means}
+
+
+acqCSpColnames.1st <- acqCSpColnames[1:4]
+acqCSmColnames.1st <- acqCSmColnames[1:4]
+
+extCSpColnames.1st <- extCSpColnames[1:6]
+extCSmColnames.1st <- extCSmColnames[1:6]
+
+
+data <- data %>%
+  mutate(Acquisition_CSPlus_FirstThird = round(rowMeans(select(., all_of(acqCSpColnames.1st))),2),
+         Acquisition_CSMinus_FirstThird = round(rowMeans(select(., all_of(acqCSmColnames.1st))),2),
+         Extinction_CSPlus_FirstThird = round(rowMeans(select(., all_of(extCSpColnames.1st))),2),
+         Extinction_CSMinus_FirstThird = round(rowMeans(select(., all_of(extCSmColnames.1st))),2))
+
+```
+
+## Final third means
+
+The average expectancy rating for each stimulus for the last third of each phase (Acquistion and extinction only, ROF has only 4 trials)
+
+```{r last third phase means}
+
+
+acqCSpColnames.last <- acqCSpColnames[9:12]
+acqCSmColnames.last <- acqCSmColnames[9:12]
+
+extCSpColnames.last <- extCSpColnames[13:18]
+extCSmColnames.last <- extCSmColnames[13:18]
+
+
+data <- data %>%
+  mutate(Acquisition_CSPlus_LastThird = round(rowMeans(select(., all_of(acqCSpColnames.last))),2),
+         Acquisition_CSMinus_LastThird = round(rowMeans(select(., all_of(acqCSmColnames.last))),2),
+         Extinction_CSPlus_LastThird = round(rowMeans(select(., all_of(extCSpColnames.last))),2),
+         Extinction_CSMinus_LastThird = round(rowMeans(select(., all_of(extCSmColnames.last))),2))
+
+```
+
+## Overall means differential
+
+the difference between average CS Plus and CS minus ratings per person per phase
+
+```{r whole phase mean differentials}
+
+data <- data %>%
+  mutate(Acquisition_WholePhaseDifferential = Acquisition_CSPlus_Mean - Acquisition_CSMinus_Mean,
+         Extinction_WholePhaseDifferential = Extinction_CSPlus_Mean - Extinction_CSMinus_Mean,
+         ReturnOfFear_WholePhaseDifferential = ReturnOfFear_CSPlus_Mean - ReturnOfFear_CSMinus_Mean)
+
+```
+
+## First third differential
+
+the difference between average CS plus and CS minus ratings per person for the first third of trials (Acquisition and extinction)
+
+```{r first third mean differentials}
+
+data <- data %>%
+  mutate(Acquisition_FirstThirdDifferential = Acquisition_CSPlus_FirstThird - Acquisition_CSMinus_FirstThird,
+         Extinction_FirstThirdDifferential = Extinction_CSPlus_FirstThird - Extinction_CSMinus_FirstThird)
+
+```
+
+## Last third differential
+
+the difference between average CS plus and CS minus ratings per person for the first third of trials (Acquisition and extinction)
+
+```{r final third mean differentials}
+
+data <- data %>%
+  mutate(Acquisition_LastThirdDifferential = Acquisition_CSPlus_LastThird - Acquisition_CSMinus_LastThird,
+         Extinction_LastThirdDifferential = Extinction_CSPlus_LastThird - Extinction_CSMinus_LastThird)
+
+```
+
+# save new dataset
+
+```{r save new exclusions}
+
+write.csv(data,paste0(save_path,"/FLAReApp_WithIDS_and_sumscores.csv"),row.names = FALSE)
+
+
+```
+
+#### Clear global environment
+```{r Clear global environment}
+remove(list = ls())
+```
+

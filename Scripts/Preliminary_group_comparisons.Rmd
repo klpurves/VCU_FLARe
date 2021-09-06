@@ -1,0 +1,880 @@
+---
+title: "Preliminary group comparisons of FLARe app data"
+author: "K L Purves"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: 3
+    toc_float:
+      collapsed: false
+    number_sections: false
+    highlight: monochrome
+    theme: cerulean
+code_folding: show
+
+html_notebook:
+  theme: cerulean
+toc: yes
+---
+
+# Description
+
+Preliminary group comparisons investigating group differences between different data subgroups in:
+
+1. Whole phase means    
+2. First third of each phase (Acquisition and Extinction)   
+3. Last third means (Acquisition and Extinction)    
+4. Differentials for all of the above.
+
+# Setup
+
+#### Clear global environment
+```{r Clear global environment}
+remove(list = ls())
+```
+
+```{r Setup, libraries}
+
+if(!require(gtsummary)){
+  install.packages("gtsummary")
+  library(gtsummary)
+}
+
+if(!require(ggplot2)){
+  install.packages("ggplot2")
+  library(ggplot2)
+}
+
+if(!require(psych)){
+  install.packages("psych")
+  library(gtools)
+}
+
+if(!require(dplyr)){
+  install.packages("dplyr")
+  library(dplyr)
+}
+
+if(!require(tidyr)){
+  install.packages("tidyr")
+  library(tidyr)
+}
+
+```
+
+## read in processed data
+
+Read in the final dataset (called "FLAReApp_WithIDS_and_sumscores.csv" from the final_datasets folder. path should be datafiles/Final_datasets/)
+
+```{r read in stage zero data and get the folder reference to save figures}
+
+## file picker
+filename_data <- file.choose()
+
+## get the path to the directory where the raw data is stored
+figure_path <- file.path(dirname(dirname(filename_data)),"Figures")
+table_path <- file.path(dirname(dirname(filename_data)),"Tables")
+
+data_all<- read.csv(filename_data)
+
+
+data_all$NewGroup_4 <- factor(data_all$NewGroup_4,
+                              labels = c("Trauma-exposed control","PTSD","AUD","PTSD+AUD"))
+```
+
+# Tables showing means and standard deviations
+
+## New Group 4
+
+```{r}
+means_4group <- data_all %>%
+  select(NewGroup_4,Acquisition_CSPlus_Mean,Acquisition_CSMinus_Mean,
+         Extinction_CSPlus_Mean,Extinction_CSMinus_Mean,
+         ReturnOfFear_CSPlus_Mean,ReturnOfFear_CSMinus_Mean,) %>%
+  tbl_summary(NewGroup_4,
+              statistic = list(all_continuous() ~ "{mean} ({sd})")) 
+means_4group 
+
+means_4group  %>%
+  as_gt() %>% 
+  gt::gtsave(
+    filename = file.path(table_path,"WholePhaseMeans_NewGroup4.png")
+  )
+```
+
+
+```{r}
+first_4group <- data_all %>%
+  select(NewGroup_4,Acquisition_CSPlus_FirstThird,Acquisition_CSMinus_FirstThird,
+         Extinction_CSPlus_FirstThird,Extinction_CSMinus_FirstThird) %>%
+  tbl_summary(NewGroup_4,
+              statistic = list(all_continuous() ~ "{mean} ({sd})")) 
+first_4group 
+
+first_4group  %>%
+  as_gt() %>% 
+  gt::gtsave(
+    filename = file.path(table_path,"FirstThirdMeans_NewGroup4.png")
+  )
+```
+
+```{r}
+last_4group <- data_all %>%
+  select(NewGroup_4,Acquisition_CSPlus_LastThird,Acquisition_CSMinus_LastThird,
+         Extinction_CSPlus_LastThird,Extinction_CSMinus_LastThird) %>%
+  tbl_summary(NewGroup_4,
+              statistic = list(all_continuous() ~ "{mean} ({sd})")) 
+last_4group 
+
+last_4group  %>%
+  as_gt() %>% 
+  gt::gtsave(
+    filename = file.path(table_path,"LastThirdMeans_NewGroup4.png")
+  )
+```
+## PTSD
+
+```{r}
+means_PTSD<- data_all %>%
+  select(PTSD,Acquisition_CSPlus_Mean,Acquisition_CSMinus_Mean,
+         Extinction_CSPlus_Mean,Extinction_CSMinus_Mean,
+         ReturnOfFear_CSPlus_Mean,ReturnOfFear_CSMinus_Mean,) %>%
+  tbl_summary(PTSD,
+              statistic = list(all_continuous() ~ "{mean} ({sd})")) 
+means_PTSD 
+
+means_PTSD  %>%
+  as_gt() %>% 
+  gt::gtsave(
+    filename = file.path(table_path,"WholePhaseMeans_PTSD.png")
+  )
+```
+
+```{r}
+first_PTSD<- data_all %>%
+  select(PTSD,Acquisition_CSPlus_FirstThird,Acquisition_CSMinus_FirstThird,
+         Extinction_CSPlus_FirstThird,Extinction_CSMinus_FirstThird) %>%
+  tbl_summary(PTSD,
+              statistic = list(all_continuous() ~ "{mean} ({sd})")) 
+first_PTSD 
+
+first_PTSD  %>%
+  as_gt() %>% 
+  gt::gtsave(
+    filename = file.path(table_path,"FirstThirdMeans_PTSD.png")
+  )
+```
+
+```{r}
+last_PTSD<- data_all %>%
+  select(PTSD,Acquisition_CSPlus_LastThird,Acquisition_CSMinus_LastThird,
+         Extinction_CSPlus_LastThird,Extinction_CSMinus_LastThird) %>%
+  tbl_summary(PTSD,
+              statistic = list(all_continuous() ~ "{mean} ({sd})")) 
+last_PTSD 
+
+last_PTSD  %>%
+  as_gt() %>% 
+  gt::gtsave(
+    filename = file.path(table_path,"LastThirdMeans_PTSD.png")
+  )
+```
+
+## AUD
+
+```{r}
+means_AUD<- data_all %>%
+  select(AUD4orMore,Acquisition_CSPlus_Mean,Acquisition_CSMinus_Mean,
+         Extinction_CSPlus_Mean,Extinction_CSMinus_Mean,
+         ReturnOfFear_CSPlus_Mean,ReturnOfFear_CSMinus_Mean,) %>%
+  tbl_summary(AUD4orMore,
+              statistic = list(all_continuous() ~ "{mean} ({sd})")) 
+means_AUD 
+
+means_AUD  %>%
+  as_gt() %>% 
+  gt::gtsave(
+    filename = file.path(table_path,"WholePhaseMeans_AUD.png")
+  )
+```
+
+```{r}
+first_AUD<- data_all %>%
+  select(AUD4orMore,Acquisition_CSPlus_FirstThird,Acquisition_CSMinus_FirstThird,
+         Extinction_CSPlus_FirstThird,Extinction_CSMinus_FirstThird) %>%
+  tbl_summary(AUD4orMore,
+              statistic = list(all_continuous() ~ "{mean} ({sd})")) 
+first_AUD 
+
+first_AUD  %>%
+  as_gt() %>% 
+  gt::gtsave(
+    filename = file.path(table_path,"FirstThirdMeans_AUD.png")
+  )
+```
+
+```{r}
+last_AUD<- data_all %>%
+  select(AUD4orMore,Acquisition_CSPlus_LastThird,Acquisition_CSMinus_LastThird,
+         Extinction_CSPlus_LastThird,Extinction_CSMinus_LastThird) %>%
+  tbl_summary(AUD4orMore,
+              statistic = list(all_continuous() ~ "{mean} ({sd})")) 
+last_AUD 
+
+last_AUD  %>%
+  as_gt() %>% 
+  gt::gtsave(
+    filename = file.path(table_path,"LastThirdMeans_AUD.png")
+  )
+```
+
+# Expectancy means bar plots {.tabset}
+
+## set up common plot features
+
+```{r parameter specs}
+
+PMpallette <- c("#002D64","#ACB9EA")  
+
+### SET UP TEXT SIZE HERE ########
+
+y.title <- 12
+axis.text <-  10
+strip.text <- 12
+
+plot.title <- 16
+plot.subtitle <- 12
+
+# png resolution and units
+res <- 700
+units = 'in'
+
+dodge <- position_dodge(width = 0.85)
+
+```
+
+
+## New Group 4
+
+### Create tidy plotting dataset 
+
+This chunk creates a dataset with group means, SE, confidence intervals for each stimulus, phase and summary score type (overall mean, first third, last third)
+
+```{r}
+
+expectancy_plot_data <- data_all %>%
+  select(ID,NewGroup_4,Acquisition_CSMinus_Mean,Acquisition_CSPlus_Mean,
+         Extinction_CSMinus_Mean, Extinction_CSPlus_Mean,
+         ReturnOfFear_CSMinus_Mean, ReturnOfFear_CSPlus_Mean,
+         Acquisition_CSMinus_FirstThird,Acquisition_CSPlus_FirstThird,
+         Extinction_CSMinus_FirstThird,Extinction_CSPlus_FirstThird,
+         Acquisition_CSMinus_LastThird,Acquisition_CSPlus_LastThird,
+         Extinction_CSMinus_LastThird,Extinction_CSPlus_LastThird) %>%
+  pivot_longer(cols = !c(ID,NewGroup_4)) %>%
+  separate(name, c("Phase","Stimulus","Variable"),convert = T) %>%
+  filter(complete.cases(.)) %>%
+  group_by(NewGroup_4, Phase, Stimulus, Variable) %>%
+  summarise(Mean = mean(value,na.rm = TRUE),
+            SD = sd(value, na.rm = TRUE),
+            N = n()) %>%
+  mutate(SE = SD/sqrt(N),
+         ci_low = Mean - qt(1-(0.05/2),N-1) * SE,
+         ci_high = Mean + qt(1-(0.05/2),N-1) * SE) 
+
+
+expectancy_plot_data$NewGroup_4 <- factor(expectancy_plot_data$NewGroup_4,
+                                                    labels = c("Trauma-exposed control","PTSD","AUD","PTSD+AUD"))
+
+names(expectancy_plot_data)[1] <- "case_status"
+
+
+expectancy_plot_data 
+
+```
+
+### bar plots: whole phase mean
+
+```{r}
+newGroup_bar <-  ggplot(expectancy_plot_data %>%
+                          filter(Variable == "Mean"),
+                     aes(case_status, Mean,
+                         fill = Stimulus))  +
+  geom_bar(position = "dodge",
+           width = 0.9,
+           stat="identity") +
+  geom_errorbar(aes(ymin =  Mean - SE,
+                    ymax = Mean + SE),
+                position = position_dodge(width=.9),
+                width = .1)                          +
+  facet_wrap(. ~ Phase,
+             nrow =2)                              +
+  theme_bw()                                         +
+  scale_fill_manual(values=PMpallette)                +        
+  labs(title=paste("Mean expectancy rating across the whole phase"),
+       
+         y="Mean expectancy rating\n",
+       
+       
+       subtitle = paste("Bars indicate standard error of the mean\n\ntrauma-exposed controls n = ", 
+                        max(expectancy_plot_data$N[expectancy_plot_data$case_status == "Trauma-exposed control"]),
+                        "\nPTSD n = ",max(expectancy_plot_data$N[expectancy_plot_data$case_status == "PTSD"]),
+                        "\nAUD n = ",max(expectancy_plot_data$N[expectancy_plot_data$case_status == "AUD"]),
+                        "\nPTSD+AUD n = ",max(expectancy_plot_data$N[expectancy_plot_data$case_status == "PTSD+AUD"])
+                        
+                        ))                             +
+  theme(plot.subtitle = element_text(face = "italic",
+                                     size = plot.subtitle),
+        plot.title = element_text(face = "italic",
+                                     size = plot.title),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(face = "bold",
+                                 size = axis.text),
+        strip.text = element_text(face = "bold",
+                                  size = strip.text),
+        legend.key = element_rect(size = 3),
+        legend.key.size = unit(3, 'lines'),
+        axis.title.y =  element_text(face = "bold",
+                                     size = y.title),
+        axis.title.x =  element_blank(),
+        panel.spacing.x=unit(0, "lines"))     + 
+  scale_y_continuous(limits = c(0,9),
+                     breaks = c(seq(0,9)))    
+
+newGroup_bar
+
+```
+
+### bar plots: first third
+
+```{r}
+newGroup_bar_first <-  ggplot(expectancy_plot_data %>%
+                          filter(Variable == "FirstThird"),
+                     aes(case_status, Mean,
+                         fill = Stimulus))  +
+  geom_bar(position = "dodge",
+           width = 0.9,
+           stat="identity") +
+  geom_errorbar(aes(ymin =  Mean - SE,
+                    ymax = Mean + SE),
+                position = position_dodge(width=.9),
+                width = .1)                          +
+  facet_wrap(. ~ Phase,
+             nrow =2)                              +
+  theme_bw()                                         +
+  scale_fill_manual(values=PMpallette)                +        
+  labs(title=paste("Mean expectancy rating across the First third of the phase"),
+       
+         y="Mean expectancy rating\n",
+       
+       
+       subtitle = paste("Bars indicate standard error of the mean\n\ntrauma-exposed controls n = ", 
+                        max(expectancy_plot_data$N[expectancy_plot_data$case_status == "Trauma-exposed control"]),
+                        "\nPTSD n = ",max(expectancy_plot_data$N[expectancy_plot_data$case_status == "PTSD"]),
+                        "\nAUD n = ",max(expectancy_plot_data$N[expectancy_plot_data$case_status == "AUD"]),
+                        "\nPTSD+AUD n = ",max(expectancy_plot_data$N[expectancy_plot_data$case_status == "PTSD+AUD"])
+                        
+                        ))                             +
+  theme(plot.subtitle = element_text(face = "italic",
+                                     size = plot.subtitle),
+        plot.title = element_text(face = "italic",
+                                     size = plot.title),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(face = "bold",
+                                 size = axis.text),
+        strip.text = element_text(face = "bold",
+                                  size = strip.text),
+        legend.key = element_rect(size = 3),
+        legend.key.size = unit(3, 'lines'),
+        axis.title.y =  element_text(face = "bold",
+                                     size = y.title),
+        axis.title.x =  element_blank(),
+        panel.spacing.x=unit(0, "lines"))     + 
+  scale_y_continuous(limits = c(0,9),
+                     breaks = c(seq(0,9)))    
+
+newGroup_bar_first
+
+```
+### bar plots: final third
+
+```{r}
+newGroup_bar_final <-  ggplot(expectancy_plot_data %>%
+                          filter(Variable == "LastThird"),
+                     aes(case_status, Mean,
+                         fill = Stimulus))  +
+  geom_bar(position = "dodge",
+           width = 0.9,
+           stat="identity") +
+  geom_errorbar(aes(ymin =  Mean - SE,
+                    ymax = Mean + SE),
+                position = position_dodge(width=.9),
+                width = .1)                          +
+  facet_wrap(. ~ Phase,
+             nrow =2)                              +
+  theme_bw()                                         +
+  scale_fill_manual(values=PMpallette)                +        
+  labs(title=paste("Mean expectancy rating across the Last third of the phase"),
+       
+         y="Mean expectancy rating\n",
+       
+       
+       subtitle = paste("Bars indicate standard error of the mean\n\ntrauma-exposed controls n = ", 
+                        max(expectancy_plot_data$N[expectancy_plot_data$case_status == "Trauma-exposed control"]),
+                        "\nPTSD n = ",max(expectancy_plot_data$N[expectancy_plot_data$case_status == "PTSD"]),
+                        "\nAUD n = ",max(expectancy_plot_data$N[expectancy_plot_data$case_status == "AUD"]),
+                        "\nPTSD+AUD n = ",max(expectancy_plot_data$N[expectancy_plot_data$case_status == "PTSD+AUD"])
+                        
+                        ))                             +
+  theme(plot.subtitle = element_text(face = "italic",
+                                     size = plot.subtitle),
+        plot.title = element_text(face = "italic",
+                                     size = plot.title),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(face = "bold",
+                                 size = axis.text),
+        strip.text = element_text(face = "bold",
+                                  size = strip.text),
+        legend.key = element_rect(size = 3),
+        legend.key.size = unit(3, 'lines'),
+        axis.title.y =  element_text(face = "bold",
+                                     size = y.title),
+        axis.title.x =  element_blank(),
+        panel.spacing.x=unit(0, "lines"))     + 
+  scale_y_continuous(limits = c(0,9),
+                     breaks = c(seq(0,9)))    
+
+newGroup_bar_final
+
+```
+
+### PTSD
+
+### Create tidy plotting dataset 
+
+This chunk creates a dataset with group means, SE, confidence intervals for each stimulus, phase and summary score type (overall mean, first third, last third)
+
+```{r}
+
+expectancy_plot_data <- data_all %>%
+  select(ID,PTSD,Acquisition_CSMinus_Mean,Acquisition_CSPlus_Mean,
+         Extinction_CSMinus_Mean, Extinction_CSPlus_Mean,
+         ReturnOfFear_CSMinus_Mean, ReturnOfFear_CSPlus_Mean,
+         Acquisition_CSMinus_FirstThird,Acquisition_CSPlus_FirstThird,
+         Extinction_CSMinus_FirstThird,Extinction_CSPlus_FirstThird,
+         Acquisition_CSMinus_LastThird,Acquisition_CSPlus_LastThird,
+         Extinction_CSMinus_LastThird,Extinction_CSPlus_LastThird) %>%
+  pivot_longer(cols = !c(ID,PTSD)) %>%
+  separate(name, c("Phase","Stimulus","Variable"),convert = T) %>%
+  filter(complete.cases(.)) %>%
+  group_by(PTSD, Phase, Stimulus, Variable) %>%
+  summarise(Mean = mean(value,na.rm = TRUE),
+            SD = sd(value, na.rm = TRUE),
+            N = n()) %>%
+  mutate(SE = SD/sqrt(N),
+         ci_low = Mean - qt(1-(0.05/2),N-1) * SE,
+         ci_high = Mean + qt(1-(0.05/2),N-1) * SE) 
+
+
+expectancy_plot_data$PTSD <- factor(expectancy_plot_data$PTSD,
+                                                    labels = c("Trauma-exposed control","PTSD"))
+
+names(expectancy_plot_data)[1] <- "case_status"
+
+
+expectancy_plot_data 
+```
+### bar plots: whole phase mean
+
+```{r}
+PTSD_bar <-  ggplot(expectancy_plot_data %>%
+                          filter(Variable == "Mean"),
+                     aes(case_status, Mean,
+                         fill = Stimulus))  +
+  geom_bar(position = "dodge",
+           width = 0.9,
+           stat="identity") +
+  geom_errorbar(aes(ymin =  Mean - SE,
+                    ymax = Mean + SE),
+                position = position_dodge(width=.9),
+                width = .1)                          +
+  facet_wrap(. ~ Phase,
+             nrow =2)                              +
+  theme_bw()                                         +
+  scale_fill_manual(values=PMpallette)                +        
+  labs(title=paste("Mean expectancy rating across the whole phase"),
+       
+         y="Mean expectancy rating\n",
+       
+       
+       subtitle = paste("Bars indicate standard error of the mean\n\ntrauma-exposed controls n = ", 
+                        max(expectancy_plot_data$N[expectancy_plot_data$case_status == "Trauma-exposed control"]),
+                        "\nPTSD n = ",max(expectancy_plot_data$N[expectancy_plot_data$case_status == "PTSD"])
+                        
+                        ))                             +
+  theme(plot.subtitle = element_text(face = "italic",
+                                     size = plot.subtitle),
+        plot.title = element_text(face = "italic",
+                                     size = plot.title),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(face = "bold",
+                                 size = axis.text),
+        strip.text = element_text(face = "bold",
+                                  size = strip.text),
+        legend.key = element_rect(size = 3),
+        legend.key.size = unit(3, 'lines'),
+        axis.title.y =  element_text(face = "bold",
+                                     size = y.title),
+        axis.title.x =  element_blank(),
+        panel.spacing.x=unit(0, "lines"))     + 
+  scale_y_continuous(limits = c(0,9),
+                     breaks = c(seq(0,9)))    
+
+PTSD_bar
+
+```
+
+### bar plots: first third
+
+```{r}
+PTSD_bar_first <-  ggplot(expectancy_plot_data %>%
+                          filter(Variable == "FirstThird"),
+                     aes(case_status, Mean,
+                         fill = Stimulus))  +
+  geom_bar(position = "dodge",
+           width = 0.9,
+           stat="identity") +
+  geom_errorbar(aes(ymin =  Mean - SE,
+                    ymax = Mean + SE),
+                position = position_dodge(width=.9),
+                width = .1)                          +
+  facet_wrap(. ~ Phase,
+             nrow =2)                              +
+  theme_bw()                                         +
+  scale_fill_manual(values=PMpallette)                +        
+  labs(title=paste("Mean expectancy rating across the First third of the phase"),
+       
+         y="Mean expectancy rating\n",
+       
+       
+       subtitle = paste("Bars indicate standard error of the mean\n\ntrauma-exposed controls n = ", 
+                        max(expectancy_plot_data$N[expectancy_plot_data$case_status == "Trauma-exposed control"]),
+                        "\nPTSD n = ",max(expectancy_plot_data$N[expectancy_plot_data$case_status == "PTSD"])
+                        
+                        ))                             +
+  theme(plot.subtitle = element_text(face = "italic",
+                                     size = plot.subtitle),
+        plot.title = element_text(face = "italic",
+                                     size = plot.title),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(face = "bold",
+                                 size = axis.text),
+        strip.text = element_text(face = "bold",
+                                  size = strip.text),
+        legend.key = element_rect(size = 3),
+        legend.key.size = unit(3, 'lines'),
+        axis.title.y =  element_text(face = "bold",
+                                     size = y.title),
+        axis.title.x =  element_blank(),
+        panel.spacing.x=unit(0, "lines"))     + 
+  scale_y_continuous(limits = c(0,9),
+                     breaks = c(seq(0,9)))    
+
+PTSD_bar_first
+
+```
+### bar plots: final third
+
+```{r}
+PTSD_bar_final <-  ggplot(expectancy_plot_data %>%
+                          filter(Variable == "LastThird"),
+                     aes(case_status, Mean,
+                         fill = Stimulus))  +
+  geom_bar(position = "dodge",
+           width = 0.9,
+           stat="identity") +
+  geom_errorbar(aes(ymin =  Mean - SE,
+                    ymax = Mean + SE),
+                position = position_dodge(width=.9),
+                width = .1)                          +
+  facet_wrap(. ~ Phase,
+             nrow =2)                              +
+  theme_bw()                                         +
+  scale_fill_manual(values=PMpallette)                +        
+  labs(title=paste("Mean expectancy rating across the Last third of the phase"),
+       
+         y="Mean expectancy rating\n",
+       
+       
+       subtitle = paste("Bars indicate standard error of the mean\n\ntrauma-exposed controls n = ", 
+                        max(expectancy_plot_data$N[expectancy_plot_data$case_status == "Trauma-exposed control"]),
+                        "\nPTSD n = ",max(expectancy_plot_data$N[expectancy_plot_data$case_status == "PTSD"])
+                        ))                             +
+  theme(plot.subtitle = element_text(face = "italic",
+                                     size = plot.subtitle),
+        plot.title = element_text(face = "italic",
+                                     size = plot.title),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(face = "bold",
+                                 size = axis.text),
+        strip.text = element_text(face = "bold",
+                                  size = strip.text),
+        legend.key = element_rect(size = 3),
+        legend.key.size = unit(3, 'lines'),
+        axis.title.y =  element_text(face = "bold",
+                                     size = y.title),
+        axis.title.x =  element_blank(),
+        panel.spacing.x=unit(0, "lines"))     + 
+  scale_y_continuous(limits = c(0,9),
+                     breaks = c(seq(0,9)))    
+
+PTSD_bar_final
+
+```
+
+### AUD
+
+### Create tidy plotting dataset 
+
+This chunk creates a dataset with group means, SE, confidence intervals for each stimulus, phase and summary score type (overall mean, first third, last third)
+
+```{r}
+
+expectancy_plot_data <- data_all %>%
+  select(ID,AUD4orMore,Acquisition_CSMinus_Mean,Acquisition_CSPlus_Mean,
+         Extinction_CSMinus_Mean, Extinction_CSPlus_Mean,
+         ReturnOfFear_CSMinus_Mean, ReturnOfFear_CSPlus_Mean,
+         Acquisition_CSMinus_FirstThird,Acquisition_CSPlus_FirstThird,
+         Extinction_CSMinus_FirstThird,Extinction_CSPlus_FirstThird,
+         Acquisition_CSMinus_LastThird,Acquisition_CSPlus_LastThird,
+         Extinction_CSMinus_LastThird,Extinction_CSPlus_LastThird) %>%
+  rename(AUD=AUD4orMore) %>%
+  pivot_longer(cols = !c(ID,AUD)) %>%
+  separate(name, c("Phase","Stimulus","Variable"),convert = T) %>%
+  filter(complete.cases(.)) %>%
+  group_by(AUD, Phase, Stimulus, Variable) %>%
+  summarise(Mean = mean(value,na.rm = TRUE),
+            SD = sd(value, na.rm = TRUE),
+            N = n()) %>%
+  mutate(SE = SD/sqrt(N),
+         ci_low = Mean - qt(1-(0.05/2),N-1) * SE,
+         ci_high = Mean + qt(1-(0.05/2),N-1) * SE) 
+
+
+expectancy_plot_data$AUD <- factor(expectancy_plot_data$AUD,
+                                                    labels = c("Trauma-exposed control","AUD"))
+
+names(expectancy_plot_data)[1] <- "case_status"
+
+
+expectancy_plot_data 
+```
+### bar plots: whole phase mean
+
+```{r}
+AUD_bar <-  ggplot(expectancy_plot_data %>%
+                          filter(Variable == "Mean"),
+                     aes(case_status, Mean,
+                         fill = Stimulus))  +
+  geom_bar(position = "dodge",
+           width = 0.9,
+           stat="identity") +
+  geom_errorbar(aes(ymin =  Mean - SE,
+                    ymax = Mean + SE),
+                position = position_dodge(width=.9),
+                width = .1)                          +
+  facet_wrap(. ~ Phase,
+             nrow =2)                              +
+  theme_bw()                                         +
+  scale_fill_manual(values=PMpallette)                +        
+  labs(title=paste("Mean expectancy rating across the whole phase"),
+       
+         y="Mean expectancy rating\n",
+       
+       
+       subtitle = paste("Bars indicate standard error of the mean\n\ntrauma-exposed controls n = ", 
+                        max(expectancy_plot_data$N[expectancy_plot_data$case_status == "Trauma-exposed control"]),
+                        "\nAUD n = ",max(expectancy_plot_data$N[expectancy_plot_data$case_status == "AUD"])
+                        
+                        ))                             +
+  theme(plot.subtitle = element_text(face = "italic",
+                                     size = plot.subtitle),
+        plot.title = element_text(face = "italic",
+                                     size = plot.title),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(face = "bold",
+                                 size = axis.text),
+        strip.text = element_text(face = "bold",
+                                  size = strip.text),
+        legend.key = element_rect(size = 3),
+        legend.key.size = unit(3, 'lines'),
+        axis.title.y =  element_text(face = "bold",
+                                     size = y.title),
+        axis.title.x =  element_blank(),
+        panel.spacing.x=unit(0, "lines"))     + 
+  scale_y_continuous(limits = c(0,9),
+                     breaks = c(seq(0,9)))    
+
+AUD_bar
+
+```
+
+### bar plots: first third
+
+```{r}
+AUD_bar_first <-  ggplot(expectancy_plot_data %>%
+                          filter(Variable == "FirstThird"),
+                     aes(case_status, Mean,
+                         fill = Stimulus))  +
+  geom_bar(position = "dodge",
+           width = 0.9,
+           stat="identity") +
+  geom_errorbar(aes(ymin =  Mean - SE,
+                    ymax = Mean + SE),
+                position = position_dodge(width=.9),
+                width = .1)                          +
+  facet_wrap(. ~ Phase,
+             nrow =2)                              +
+  theme_bw()                                         +
+  scale_fill_manual(values=PMpallette)                +        
+  labs(title=paste("Mean expectancy rating across the First third of the phase"),
+       
+         y="Mean expectancy rating\n",
+       
+       
+       subtitle = paste("Bars indicate standard error of the mean\n\ntrauma-exposed controls n = ", 
+                        max(expectancy_plot_data$N[expectancy_plot_data$case_status == "Trauma-exposed control"]),
+                        "\nAUD n = ",max(expectancy_plot_data$N[expectancy_plot_data$case_status == "AUD"])
+                        
+                        ))                             +
+  theme(plot.subtitle = element_text(face = "italic",
+                                     size = plot.subtitle),
+        plot.title = element_text(face = "italic",
+                                     size = plot.title),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(face = "bold",
+                                 size = axis.text),
+        strip.text = element_text(face = "bold",
+                                  size = strip.text),
+        legend.key = element_rect(size = 3),
+        legend.key.size = unit(3, 'lines'),
+        axis.title.y =  element_text(face = "bold",
+                                     size = y.title),
+        axis.title.x =  element_blank(),
+        panel.spacing.x=unit(0, "lines"))     + 
+  scale_y_continuous(limits = c(0,9),
+                     breaks = c(seq(0,9)))    
+
+AUD_bar_first
+
+```
+### bar plots: final third
+
+```{r}
+AUD_bar_final <-  ggplot(expectancy_plot_data %>%
+                          filter(Variable == "LastThird"),
+                     aes(case_status, Mean,
+                         fill = Stimulus))  +
+  geom_bar(position = "dodge",
+           width = 0.9,
+           stat="identity") +
+  geom_errorbar(aes(ymin =  Mean - SE,
+                    ymax = Mean + SE),
+                position = position_dodge(width=.9),
+                width = .1)                          +
+  facet_wrap(. ~ Phase,
+             nrow =2)                              +
+  theme_bw()                                         +
+  scale_fill_manual(values=PMpallette)                +        
+  labs(title=paste("Mean expectancy rating across the Last third of the phase"),
+       
+         y="Mean expectancy rating\n",
+       
+       
+       subtitle = paste("Bars indicate standard error of the mean\n\ntrauma-exposed controls n = ", 
+                        max(expectancy_plot_data$N[expectancy_plot_data$case_status == "Trauma-exposed control"]),
+                        "\nAUD n = ",max(expectancy_plot_data$N[expectancy_plot_data$case_status == "AUD"])
+                        ))                             +
+  theme(plot.subtitle = element_text(face = "italic",
+                                     size = plot.subtitle),
+        plot.title = element_text(face = "italic",
+                                     size = plot.title),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(face = "bold",
+                                 size = axis.text),
+        strip.text = element_text(face = "bold",
+                                  size = strip.text),
+        legend.key = element_rect(size = 3),
+        legend.key.size = unit(3, 'lines'),
+        axis.title.y =  element_text(face = "bold",
+                                     size = y.title),
+        axis.title.x =  element_blank(),
+        panel.spacing.x=unit(0, "lines"))     + 
+  scale_y_continuous(limits = c(0,9),
+                     breaks = c(seq(0,9)))    
+
+AUD_bar_final
+
+```
+
+# save plots
+
+```{r}
+
+# save  figures in folder
+
+## New Group 4
+png(paste0(figure_path,"/BarPlot_WholePhaseMeans_NewGroup4.png"),width=18,height=10,unit=units,res=res)
+ggdraw(newGroup_bar)
+dev.off()
+
+png(paste0(figure_path,"/BarPlot_FirstThirdMeans_NewGroup4.png"),width=18,height=10,unit=units,res=res)
+ggdraw(newGroup_bar_first)
+dev.off()
+
+png(paste0(figure_path,"/BarPlot_LastThirdMeans_NewGroup4.png"),width=18,height=10,unit=units,res=res)
+ggdraw(newGroup_bar_final)
+dev.off()
+
+## PTSD
+
+png(paste0(figure_path,"/BarPlot_WholePhaseMeans_PTSD.png"),width=18,height=10,unit=units,res=res)
+ggdraw(PTSD_bar)
+dev.off()
+
+png(paste0(figure_path,"/BarPlot_FirstThirdMeans_PTSD.png"),width=18,height=10,unit=units,res=res)
+ggdraw(PTSD_bar_first)
+dev.off()
+
+png(paste0(figure_path,"/BarPlot_LastThirdMeans_PTSD.png"),width=18,height=10,unit=units,res=res)
+ggdraw(PTSD_bar_final)
+dev.off()
+
+## AUD
+png(paste0(figure_path,"/BarPlot_WholePhaseMeans_AUD.png"),width=18,height=10,unit=units,res=res)
+ggdraw(AUD_bar)
+dev.off()
+
+png(paste0(figure_path,"/BarPlot_FirstThirdMeans_AUD.png"),width=18,height=10,unit=units,res=res)
+ggdraw(AUD_bar_first)
+dev.off()
+
+png(paste0(figure_path,"/BarPlot_LastThirdMeans_AUD.png"),width=18,height=10,unit=units,res=res)
+ggdraw(AUD_bar_final)
+dev.off()
+
+
+
+```
+

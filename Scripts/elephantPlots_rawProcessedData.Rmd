@@ -28,9 +28,15 @@ remove(list = ls())
 
 # Description
 
-This script will take the raw processed data from step one (i.e. a dataset that is well shaped and labelled, but not yet aggregated or with any appropriate issing data imputations etc) and create a series of plots to visualise the data. This will help for quick visual QCs and feasibility checks.
+This script will take the processed data from step two (i.e. a dataset that is well shaped and labelled, missing data imputed as necessary and aggregated) and create a series of plots to visualise the data. This will help for quick visual QCs and feasibility checks.
 
-The code can be easily adapted to work on a clean dataset with missing values imputed. 
+Elephant plots are then displayed per group.
+
+Note, exclusions have not yet been applied.
+
+The code can be easily adapted to work on a clean dataset with exclusions dropped, or to drop exclusions once they have been merged onto the dataset with correct IDs.
+
+
 
 ```{r Setup, libraries}
 
@@ -66,7 +72,9 @@ if(!require(gtools)){
 separate out affective ratings and make a long dataframe, with summary data across the cohort.
 
 
-## read in processed data from stage zero
+## read in processed data
+
+Read in the final dataset (called "FLAReApp_WithIDS_and_sumscores.csv" from the final_datasets folder. path should be datafiles/Final_datasets/)
 
 ```{r read in stage zero data and get the folder reference to save figures}
 
@@ -83,12 +91,18 @@ data_all<- read.csv(filename_data)
 
 ## create expectancy dataset
 
-drop affective ratings, volume vars and CSpID
+drop affective ratings, volume vars and CSpID, S4S variables, and mean summary variables.
+
+Note, newgroup_4 = [1=trauma exposed control, 2=PTSD, 3=AUD, 4=both]; it uses a stricter cut off for alcohol use disorder than New2, so we drop new 2. Will retain PTSD/AUD columns to check these larger groups
+
 
 ```{r drop affective}
 
 expectancy <- data_all %>%
-  select(!contains(c("volume", "CSpID","Affective")))
+  select(!contains(c("volume", "CSpID","Affective", "Mean","FirstThird","LastThird","Differential","Missing",
+                     "to_consent_covid","timewanted_to_covid","from","tostatus","dna","yremoved",
+                     "status_descr","tostatus","contact","tstatus",
+                     "NewGroup_2")))
 
 
 ```
@@ -98,7 +112,10 @@ drop all expectancy ratings and volume vars
 ```{r drop expectancy}
 
 affective <- data_all %>%
-  select(contains(c("Subject_ID","Affective")))
+  rename(Subject_ID = "ID",
+         AUD = "AUD4orMore") %>%
+  select(contains(c("Subject_ID","Affective","NewGroup_4","PTSD","AUD")))
+
 
 
 ```
@@ -107,11 +124,15 @@ affective <- data_all %>%
 
 Long format, with summary data (means across sample, 95% CIs)
 
-### expectancy
+### expectancy plot data 
 make long, drop generalisation and trials that were not actually responded to due to drop out, make 999 (missed response) NA, create summary of data
+
+#### whole group
+drop grouping variables
 ```{r expectancy plot data}
 expectancy_plot_data <- expectancy %>%
-  pivot_longer(cols = !c(Subject_ID)) %>%
+  select(!NewGroup_4,!AUD4orMore,!PTSD) %>%
+  pivot_longer(cols = !c(ID)) %>%
   separate(name, c("Phase","Stimulus","Trial"),convert = T) %>%
 filter(complete.cases(.)) %>%
   filter(Phase != "Generalisation") %>%
@@ -125,11 +146,91 @@ filter(complete.cases(.)) %>%
          ci_high = Mean + qt(1-(0.05/2),N-1) * SE) 
 ```
 
-### affective
+#### grouped by Trauma-exposed control, PTSD, AUD, PTSD+AUD
+
+Group by NewGroup_4
+```{r expectancy plot data new group}
+expectancy_plot_data_NewGroup4 <- expectancy %>%
+  select(!AUD4orMore,!PTSD) %>%
+  pivot_longer(cols = !c(ID,NewGroup_4)) %>%
+  separate(name, c("Phase","Stimulus","Trial"),convert = T) %>%
+filter(complete.cases(.)) %>%
+  filter(Phase != "Generalisation") %>%
+  mutate(value = ifelse(value == 999,NA,value)) %>%
+  group_by(NewGroup_4, Phase, Stimulus, Trial) %>%
+  summarise(Mean = mean(value,na.rm = TRUE),
+            SD = sd(value, na.rm = TRUE),
+            N = n()) %>%
+  mutate(SE = SD/sqrt(N),
+         ci_low = Mean - qt(1-(0.05/2),N-1) * SE,
+         ci_high = Mean + qt(1-(0.05/2),N-1) * SE) 
+
+expectancy_plot_data_NewGroup4$NewGroup_4 <- factor(expectancy_plot_data_NewGroup4$NewGroup_4,
+                                                    labels = c("Trauma-exposed control","PTSD","AUD","PTSD+AUD"))
+
+names(expectancy_plot_data_NewGroup4)[1] <- "case_status"
+
+# cut off confidence intervals at 1 and 10 for plotting. 
+
+expectancy_plot_data_NewGroup4$ci_low <- ifelse(expectancy_plot_data_NewGroup4$ci_low < 1,1,expectancy_plot_data_NewGroup4$ci_low)
+expectancy_plot_data_NewGroup4$ci_high <- ifelse(expectancy_plot_data_NewGroup4$ci_high > 9,9,expectancy_plot_data_NewGroup4$ci_high)
+```
+
+#### grouped by PTSD status
+
+```{r expectancy plot data PTSD}
+expectancy_plot_data_PTSD <- expectancy %>%
+  select(!AUD4orMore,!NewGroup_4) %>%
+  pivot_longer(cols = !c(ID,PTSD)) %>%
+  separate(name, c("Phase","Stimulus","Trial"),convert = T) %>%
+filter(complete.cases(.)) %>%
+  filter(Phase != "Generalisation") %>%
+  mutate(value = ifelse(value == 999,NA,value)) %>%
+  group_by(PTSD, Phase, Stimulus, Trial) %>%
+  summarise(Mean = mean(value,na.rm = TRUE),
+            SD = sd(value, na.rm = TRUE),
+            N = n()) %>%
+  mutate(SE = SD/sqrt(N),
+         ci_low = Mean - qt(1-(0.05/2),N-1) * SE,
+         ci_high = Mean + qt(1-(0.05/2),N-1) * SE) 
+
+expectancy_plot_data_PTSD$PTSD <- factor(expectancy_plot_data_PTSD$PTSD,
+                                                    labels = c("Trauma-exposed control","PTSD"))
+
+names(expectancy_plot_data_PTSD)[1] <- "case_status"
+```
+
+#### grouped by AUD status
+
+```{r expectancy plot data AUD}
+
+expectancy_plot_data_AUD <- expectancy %>%
+  select(!PTSD,!NewGroup_4) %>%
+  pivot_longer(cols = !c(ID,AUD4orMore)) %>%
+  separate(name, c("Phase","Stimulus","Trial"),convert = T) %>%
+filter(complete.cases(.)) %>%
+  filter(Phase != "Generalisation") %>%
+  mutate(value = ifelse(value == 999,NA,value)) %>%
+  group_by(AUD4orMore, Phase, Stimulus, Trial) %>%
+  summarise(Mean = mean(value,na.rm = TRUE),
+            SD = sd(value, na.rm = TRUE),
+            N = n()) %>%
+  mutate(SE = SD/sqrt(N),
+         ci_low = Mean - qt(1-(0.05/2),N-1) * SE,
+         ci_high = Mean + qt(1-(0.05/2),N-1) * SE) 
+
+expectancy_plot_data_AUD$AUD4orMore <- factor(expectancy_plot_data_AUD$AUD4orMore,
+                                                    labels = c("Trauma-exposed control","AUD"))
+
+names(expectancy_plot_data_AUD)[1] <- "case_status"
+```
+
+### affective: Whole group
 make long, drop g trials that were not actually responded to due to drop out, make 999 (missed response) NA, create summary of data
 ```{r affective plot data}
 
 affective_plot_data <- affective %>%
+  select(!NewGroup_4,!PTSD,!AUD) %>%
   pivot_longer(cols = !c(Subject_ID)) %>%
   separate(name, c("Rating","Type","Stimulus","Phase"),convert = T) %>%
 filter(complete.cases(.)) %>%
@@ -143,6 +244,88 @@ filter(complete.cases(.)) %>%
          ci_low = Mean - qt(1-(0.05/2),N-1) * SE,
          ci_high = Mean + qt(1-(0.05/2),N-1) * SE) 
 
+```
+
+### affective: all four groups
+
+```{r affective plot data four group}
+
+affective_plot_data_NewGroup4 <- affective %>%
+  select(!PTSD,!AUD) %>%
+  pivot_longer(cols = !c(Subject_ID,NewGroup_4)) %>%
+  separate(name, c("Rating","Type","Stimulus","Phase"),convert = T) %>%
+filter(complete.cases(.)) %>%
+  mutate(value = ifelse(value == 999,NA,value)) %>%
+  select(-Rating) %>%
+  group_by(NewGroup_4,Type,Stimulus,Phase) %>%
+  summarise(Mean = mean(value,na.rm = TRUE),
+            SD = sd(value, na.rm = TRUE),
+            N = n()) %>%
+  mutate(SE = SD/sqrt(N),
+         ci_low = Mean - qt(1-(0.05/2),N-1) * SE,
+         ci_high = Mean + qt(1-(0.05/2),N-1) * SE) 
+
+
+affective_plot_data_NewGroup4$NewGroup_4<- factor(affective_plot_data_NewGroup4$NewGroup_4,
+                                                    labels = c("Trauma-exposed control","PTSD","AUD","PTSD+AUD"))
+
+names(affective_plot_data_NewGroup4)[1] <- "case_status"
+
+# cut off confidence intervals at 1 and 10 for plotting. 
+
+affective_plot_data_NewGroup4$ci_low <- ifelse(affective_plot_data_NewGroup4$ci_low < 1,1,affective_plot_data_NewGroup4$ci_low)
+affective_plot_data_NewGroup4$ci_high <- ifelse(affective_plot_data_NewGroup4$ci_high > 9,9,affective_plot_data_NewGroup4$ci_high)
+```
+
+### affective: PTSD
+
+```{r affective plot data PTSD}
+
+affective_plot_data_PTSD <- affective %>%
+  select(!NewGroup_4,!AUD) %>%
+  pivot_longer(cols = !c(Subject_ID,PTSD)) %>%
+  separate(name, c("Rating","Type","Stimulus","Phase"),convert = T) %>%
+filter(complete.cases(.)) %>%
+  mutate(value = ifelse(value == 999,NA,value)) %>%
+  select(-Rating) %>%
+  group_by(PTSD,Type,Stimulus,Phase) %>%
+  summarise(Mean = mean(value,na.rm = TRUE),
+            SD = sd(value, na.rm = TRUE),
+            N = n()) %>%
+  mutate(SE = SD/sqrt(N),
+         ci_low = Mean - qt(1-(0.05/2),N-1) * SE,
+         ci_high = Mean + qt(1-(0.05/2),N-1) * SE) 
+
+affective_plot_data_PTSD$PTSD <- factor(affective_plot_data_PTSD$PTSD,
+                                                    labels = c("Trauma-exposed control","PTSD"))
+
+names(affective_plot_data_PTSD)[1] <- "case_status"
+
+```
+
+### affective: AUD
+
+```{r affective plot data AUD}
+
+affective_plot_data_AUD <- affective %>%
+  select(!NewGroup_4,!PTSD) %>%
+  pivot_longer(cols = !c(Subject_ID,AUD)) %>%
+  separate(name, c("Rating","Type","Stimulus","Phase"),convert = T) %>%
+filter(complete.cases(.)) %>%
+  mutate(value = ifelse(value == 999,NA,value)) %>%
+  select(-Rating) %>%
+  group_by(AUD,Type,Stimulus,Phase) %>%
+  summarise(Mean = mean(value,na.rm = TRUE),
+            SD = sd(value, na.rm = TRUE),
+            N = n()) %>%
+  mutate(SE = SD/sqrt(N),
+         ci_low = Mean - qt(1-(0.05/2),N-1) * SE,
+         ci_high = Mean + qt(1-(0.05/2),N-1) * SE) 
+
+affective_plot_data_AUD$AUD <- factor(affective_plot_data_AUD$AUD,
+                                                    labels = c("Trauma-exposed control","AUD"))
+
+names(affective_plot_data_AUD)[1] <- "case_status"
 ```
 
 # Expectancy elephant plot
@@ -168,9 +351,9 @@ units = 'in'
 
 ```
 
-## plot
+## plot whole group elephant
 
-```{r elephant plot}
+```{r elephant plot whole group}
 
 
 elephant <-  ggplot(expectancy_plot_data,
@@ -217,14 +400,173 @@ elephant
 
 ```
 
+## plot all four groups
+
+```{r elephant plot new group 4}
+
+elephant_AllGroups <-  ggplot(expectancy_plot_data_NewGroup4,
+                     aes(Trial,Mean,
+                         color=Stimulus))         +
+  geom_point(size=2)                                        +
+  geom_line(size =1)                                        +
+  geom_ribbon(aes(ymin=ci_low, ymax=ci_high,
+                  fill=Stimulus),
+              linetype=2, alpha=0.1,
+              size=.8)                                      +
+  scale_fill_manual( values=c(PMpallette))                   +
+  facet_grid(case_status ~ Phase, scales = "free_x",
+             space = "free_x")              +
+  theme_bw()                                                +
+  scale_color_manual(values=PMpallette)                     +
+  labs(title=paste("Preliminary Elephant plot"),
+       
+         y="Mean expectancy rating\n",
+       
+       
+       subtitle = paste("dashed lines = 95% confidence intervals\ntrauma-exposed controls n = ", 
+                        max(expectancy_plot_data_NewGroup4$N[expectancy_plot_data_NewGroup4$case_status == "Trauma-exposed control"]),
+                        "\nPTSD n = ",max(expectancy_plot_data_NewGroup4$N[expectancy_plot_data_NewGroup4$case_status == "PTSD"]),
+                        "\nAUD n = ",max(expectancy_plot_data_NewGroup4$N[expectancy_plot_data_NewGroup4$case_status == "AUD"]),
+                        "\nPTSD+AUD n = ",max(expectancy_plot_data_NewGroup4$N[expectancy_plot_data_NewGroup4$case_status == "PTSD+AUD"])
+                        
+                        ))                                   +
+  theme(plot.subtitle = element_text(face = "italic",
+                                     size = plot.subtitle),
+        plot.title = element_text(face = "italic",
+                                     size = plot.title),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(face = "bold",
+                                 size = axis.text),
+        strip.text = element_text(face = "bold",
+                                  size = strip.text),
+        legend.position = 'right',
+        axis.title = element_text(face = "bold",
+                                  size = y.title),
+        panel.spacing.x=unit(0, "lines"))                     +
+  
+  scale_x_continuous(breaks = round(seq(min(expectancy_plot_data$Trial),
+                                        max(expectancy_plot_data$Trial), by = 1),1))          +
+  scale_y_continuous(breaks = seq(0,10,by=1))         +
+  theme(plot.margin = unit(c(0.6, 0.6, 0.6, 0.6), "cm"))
+
+
+elephant_AllGroups
+
+```
+## plot PTSD vs trauma exposed controls
+
+```{r elephant plot PTSD}
+
+elephant_PTSD <-  ggplot(expectancy_plot_data_PTSD,
+                     aes(Trial,Mean,
+                         color=Stimulus))         +
+  geom_point(size=2)                                        +
+  geom_line(size =1)                                        +
+  geom_ribbon(aes(ymin=ci_low, ymax=ci_high,
+                  fill=Stimulus),
+              linetype=2, alpha=0.1,
+              size=.8)                                      +
+  scale_fill_manual( values=c(PMpallette))                   +
+  facet_grid(case_status ~ Phase, scales = "free_x",
+             space = "free_x")              +
+  theme_bw()                                                +
+  scale_color_manual(values=PMpallette)                     +
+  labs(title=paste("Preliminary Elephant plot"),
+       
+         y="Mean expectancy rating\n",
+       
+       
+       subtitle = paste("dashed lines = 95% confidence intervals\ntrauma-exposed controls n = ", 
+                        max(expectancy_plot_data_PTSD$N[expectancy_plot_data_PTSD$case_status == "Trauma-exposed control"]),
+                        "\nPTSD n = ",max(expectancy_plot_data_PTSD$N[expectancy_plot_data_PTSD$case_status == "PTSD"])
+                        
+                        ))                                   +
+  theme(plot.subtitle = element_text(face = "italic",
+                                     size = plot.subtitle),
+        plot.title = element_text(face = "italic",
+                                     size = plot.title),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(face = "bold",
+                                 size = axis.text),
+        strip.text = element_text(face = "bold",
+                                  size = strip.text),
+        legend.position = 'right',
+        axis.title = element_text(face = "bold",
+                                  size = y.title),
+        panel.spacing.x=unit(0, "lines"))                     +
+  
+  scale_x_continuous(breaks = round(seq(min(expectancy_plot_data$Trial),
+                                        max(expectancy_plot_data$Trial), by = 1),1))          +
+  scale_y_continuous(breaks = seq(0,10,by=1))         +
+  theme(plot.margin = unit(c(0.6, 0.6, 0.6, 0.6), "cm"))
+
+
+elephant_PTSD
+
+```
+
+## plot AUD vs trauma exposed controls
+
+```{r elephant plot AUD}
+
+elephant_AUD <-  ggplot(expectancy_plot_data_AUD,
+                     aes(Trial,Mean,
+                         color=Stimulus))         +
+  geom_point(size=2)                                        +
+  geom_line(size =1)                                        +
+  geom_ribbon(aes(ymin=ci_low, ymax=ci_high,
+                  fill=Stimulus),
+              linetype=2, alpha=0.1,
+              size=.8)                                      +
+  scale_fill_manual( values=c(PMpallette))                   +
+  facet_grid(case_status ~ Phase, scales = "free_x",
+             space = "free_x")              +
+  theme_bw()                                                +
+  scale_color_manual(values=PMpallette)                     +
+  labs(title=paste("Preliminary Elephant plot"),
+       
+         y="Mean expectancy rating\n",
+       
+       
+       subtitle = paste("dashed lines = 95% confidence intervals\ntrauma-exposed controls n = ", 
+                        max(expectancy_plot_data_AUD$N[expectancy_plot_data_AUD$case_status == "Trauma-exposed control"]),
+                        "\nAUD n = ",max(expectancy_plot_data_AUD$N[expectancy_plot_data_AUD$case_status == "AUD"])
+                        
+                        ))                                   +
+  theme(plot.subtitle = element_text(face = "italic",
+                                     size = plot.subtitle),
+        plot.title = element_text(face = "italic",
+                                     size = plot.title),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(face = "bold",
+                                 size = axis.text),
+        strip.text = element_text(face = "bold",
+                                  size = strip.text),
+        legend.position = 'right',
+        axis.title = element_text(face = "bold",
+                                  size = y.title),
+        panel.spacing.x=unit(0, "lines"))                     +
+  
+  scale_x_continuous(breaks = round(seq(min(expectancy_plot_data$Trial),
+                                        max(expectancy_plot_data$Trial), by = 1),1))          +
+  scale_y_continuous(breaks = seq(0,10,by=1))         +
+  theme(plot.margin = unit(c(0.6, 0.6, 0.6, 0.6), "cm"))
+
+
+elephant_AUD
+
+```
 
 # Affective rating plot
 
 set up plot parameters such as palette and font sizes
 
-## plot
+## plot: Whole group 
 
-```{r affective plot}
+```{r affective plot whole sample}
 
 
 affective_figure <-  ggplot(affective_plot_data,
@@ -271,19 +613,199 @@ affective_figure
 
 ```
 
+## plot: New Group 4
+
+```{r affective plot 4 group}
+
+
+affective_NewGroup4 <-  ggplot(affective_plot_data_NewGroup4,
+                     aes(Phase,Mean,
+                         color=Stimulus))         +
+  geom_point(size=2)                                        +
+  geom_line(size =1)                                        +
+  geom_ribbon(aes(ymin=ci_low, ymax=ci_high,
+                  fill=Stimulus),
+              linetype=2, alpha=0.1,
+              size=.8)                                      +
+  scale_fill_manual( values=c(PMpallette))                   +
+  facet_grid(case_status ~ Type, scales = "free_x",
+             space = "free_x")              +
+  theme_bw()                                                +
+  scale_color_manual(values=PMpallette)                     +
+  labs(title=paste("ongoing data checks: affective ratings"),
+         y="Mean affective rating\n",
+       
+       subtitle = paste("dashed lines = 95% confidence intervals\ntrauma-exposed controls n = ", 
+                        max(affective_plot_data_NewGroup4$N[affective_plot_data_NewGroup4$case_status == "Trauma-exposed control"]),
+                        "\nPTSD n = ",max(affective_plot_data_NewGroup4$N[affective_plot_data_NewGroup4$case_status == "PTSD"]),
+                        "\nAUD n = ",max(affective_plot_data_NewGroup4$N[affective_plot_data_NewGroup4$case_status == "AUD"]),
+                        "\nPTSD+AUD n = ",max(affective_plot_data_NewGroup4$N[affective_plot_data_NewGroup4$case_status == "PTSD+AUD"])
+                        
+                        ))  +
+  theme(plot.subtitle = element_text(face = "italic",
+                                     size = plot.subtitle),
+        plot.title = element_text(face = "italic",
+                                     size = plot.title),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(face = "bold",
+                                 size = axis.text),
+        strip.text = element_text(face = "bold",
+                                  size = strip.text),
+        legend.position = 'right',
+        axis.title = element_text(face = "bold",
+                                  size = y.title),
+        panel.spacing.x=unit(0, "lines"))                     +
+  
+  scale_x_continuous(breaks = round(seq(min(affective_plot_data$Phase),
+                                        max(affective_plot_data$Phase), by = 1),1))          +
+  scale_y_continuous(breaks = seq(0,10,by=1))         +
+  theme(plot.margin = unit(c(0.6, 0.6, 0.6, 0.6), "cm"))
+
+
+affective_NewGroup4
+
+```
+
+## plot: PTSD
+
+```{r affective plot PTSD}
+
+
+affective_PTSD <-  ggplot(affective_plot_data_PTSD,
+                     aes(Phase,Mean,
+                         color=Stimulus))         +
+  geom_point(size=2)                                        +
+  geom_line(size =1)                                        +
+  geom_ribbon(aes(ymin=ci_low, ymax=ci_high,
+                  fill=Stimulus),
+              linetype=2, alpha=0.1,
+              size=.8)                                      +
+  scale_fill_manual( values=c(PMpallette))                   +
+  facet_grid(case_status ~ Type, scales = "free_x",
+             space = "free_x")              +
+  theme_bw()                                                +
+  scale_color_manual(values=PMpallette)                     +
+  labs(title=paste("ongoing data checks: affective ratings"),
+         y="Mean affective rating\n",
+       
+       subtitle = paste("dashed lines = 95% confidence intervals\ntrauma-exposed controls n = ", 
+                        max(affective_plot_data_PTSD$N[affective_plot_data_PTSD$case_status == "Trauma-exposed control"]),
+                        "\nPTSD n = ",max(affective_plot_data_PTSD$N[affective_plot_data_PTSD$case_status == "PTSD"])
+                        
+                        ))  +
+  theme(plot.subtitle = element_text(face = "italic",
+                                     size = plot.subtitle),
+        plot.title = element_text(face = "italic",
+                                     size = plot.title),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(face = "bold",
+                                 size = axis.text),
+        strip.text = element_text(face = "bold",
+                                  size = strip.text),
+        legend.position = 'right',
+        axis.title = element_text(face = "bold",
+                                  size = y.title),
+        panel.spacing.x=unit(0, "lines"))                     +
+  
+  scale_x_continuous(breaks = round(seq(min(affective_plot_data$Phase),
+                                        max(affective_plot_data$Phase), by = 1),1))          +
+  scale_y_continuous(breaks = seq(0,10,by=1))         +
+  theme(plot.margin = unit(c(0.6, 0.6, 0.6, 0.6), "cm"))
+
+
+affective_PTSD
+
+```
+## plot: AUD
+
+```{r affective plot AUD}
+
+
+affective_AUD <-  ggplot(affective_plot_data_AUD,
+                     aes(Phase,Mean,
+                         color=Stimulus))         +
+  geom_point(size=2)                                        +
+  geom_line(size =1)                                        +
+  geom_ribbon(aes(ymin=ci_low, ymax=ci_high,
+                  fill=Stimulus),
+              linetype=2, alpha=0.1,
+              size=.8)                                      +
+  scale_fill_manual( values=c(PMpallette))                   +
+  facet_grid(case_status ~ Type, scales = "free_x",
+             space = "free_x")              +
+  theme_bw()                                                +
+  scale_color_manual(values=PMpallette)                     +
+  labs(title=paste("ongoing data checks: affective ratings"),
+         y="Mean affective rating\n",
+       
+       subtitle = paste("dashed lines = 95% confidence intervals\ntrauma-exposed controls n = ", 
+                        max(affective_plot_data_AUD$N[affective_plot_data_AUD$case_status == "Trauma-exposed control"]),
+                        "\nAUD n = ",max(affective_plot_data_AUD$N[affective_plot_data_AUD$case_status == "AUD"])
+                        
+                        ))  +
+  theme(plot.subtitle = element_text(face = "italic",
+                                     size = plot.subtitle),
+        plot.title = element_text(face = "italic",
+                                     size = plot.title),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_text(face = "bold",
+                                 size = axis.text),
+        strip.text = element_text(face = "bold",
+                                  size = strip.text),
+        legend.position = 'right',
+        axis.title = element_text(face = "bold",
+                                  size = y.title),
+        panel.spacing.x=unit(0, "lines"))                     +
+  
+  scale_x_continuous(breaks = round(seq(min(affective_plot_data$Phase),
+                                        max(affective_plot_data$Phase), by = 1),1))          +
+  scale_y_continuous(breaks = seq(0,10,by=1))         +
+  theme(plot.margin = unit(c(0.6, 0.6, 0.6, 0.6), "cm"))
+
+
+affective_AUD
+
+```
 
 # save figures 
 
 ```{r save elephant}
 
-# save figure in folder
-png(paste0(figure_path,"/DataQC_ElephantPlot.png"),width=18,height=10,unit=units,res=res)
+# save expectancy figures in folder
+png(paste0(figure_path,"/DataQC_ElephantPlot_WholeSample.png"),width=18,height=10,unit=units,res=res)
 ggdraw(elephant)
 dev.off()
 
-# save figure in folder
-png(paste0(figure_path,"/DataQC_AffectiveRatings.png"),width=18,height=10,unit=units,res=res)
+png(paste0(figure_path,"/DataQC_ElephantPlot_NewGroup4.png"),width=18,height=10,unit=units,res=res)
+ggdraw(elephant_AllGroups)
+dev.off()
+
+png(paste0(figure_path,"/DataQC_ElephantPlot_PTSD.png"),width=18,height=10,unit=units,res=res)
+ggdraw(elephant_PTSD)
+dev.off()
+
+png(paste0(figure_path,"/DataQC_ElephantPlot_AUD.png"),width=18,height=10,unit=units,res=res)
+ggdraw(elephant_AUD)
+dev.off()
+
+# save affective figures in folder
+png(paste0(figure_path,"/DataQC_AffectiveRatings_WholeSample.png"),width=18,height=10,unit=units,res=res)
 ggdraw(affective_figure)
+dev.off()
+
+png(paste0(figure_path,"/DataQC_AffectiveRatings_NewGroup4.png"),width=18,height=10,unit=units,res=res)
+ggdraw(affective_NewGroup4)
+dev.off()
+
+png(paste0(figure_path,"/DataQC_AffectiveRatings_PTSD.png"),width=18,height=10,unit=units,res=res)
+ggdraw(affective_PTSD)
+dev.off()
+
+png(paste0(figure_path,"/DataQC_AffectiveRatings_AUD.png"),width=18,height=10,unit=units,res=res)
+ggdraw(affective_AUD)
 dev.off()
 
 ```
